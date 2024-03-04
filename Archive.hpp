@@ -12,19 +12,19 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <iostream>
 #include <vector>
 #include <memory>
 #include <optional>
 #include <stdexcept>
-
+#include <list>
 namespace ECE141 {
 
     enum class ActionType {added, extracted, removed, listed, dumped, compacted};
     enum class AccessMode {AsNew, AsExisting}; //you can change values (but not names) of this enum
 
     struct ArchiveObserver {
-        void operator()(ActionType anAction,
-                        const std::string &aName, bool status);
+        void operator()(ActionType anAction, const std::string &aName, bool status);
     };
 
     class IDataProcessor {
@@ -83,12 +83,29 @@ namespace ECE141 {
     //--------------------------------------------------------------------------------
     //You'll need to define your own classes for Blocks, and other useful types...
     //--------------------------------------------------------------------------------
+    const size_t KBlockSize{1024};
+    struct BlockHeader {
+        bool occupied = true;
+        bool isFirstBlock = false;
+        int next_block = -1;
+        uint32_t fileName;
+    };
+
+    struct Block {
+        BlockHeader meta;
+        char data[KBlockSize - sizeof(BlockHeader)];
+    };
 
     class Archive {
     protected:
         std::vector<std::shared_ptr<IDataProcessor>> processors;
         std::vector<std::shared_ptr<ArchiveObserver>> observers;
+
+        static std::unordered_map<std::string, std::shared_ptr<Archive>> existing_archive;
         Archive(const std::string &aFullPath, AccessMode aMode);  //protected on purpose
+        std::list<size_t> free_block_index;
+        std::string fullPath;
+        AccessMode theMode;
 
     public:
 
@@ -98,6 +115,8 @@ namespace ECE141 {
         static    ArchiveStatus<std::shared_ptr<Archive>> openArchive(const std::string &anArchiveName);
 
         Archive&  addObserver(std::shared_ptr<ArchiveObserver> anObserver);
+
+        static uint32_t hashString(const char *str);
 
         ArchiveStatus<bool>      add(const std::string &aFilename);
         ArchiveStatus<bool>      extract(const std::string &aFilename, const std::string &aFullPath);
@@ -114,6 +133,8 @@ namespace ECE141 {
         //STUDENT: add anything else you want here, (e.g. blocks?)...
 
     };
+
+//    std::unordered_map<std::string, std::shared_ptr<Archive>> Archive::existing_archive;
 
 }
 
