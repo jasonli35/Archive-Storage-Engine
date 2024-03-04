@@ -19,6 +19,7 @@
 #include <stdexcept>
 #include <list>
 #include <unordered_map>
+#include <filesystem>
 namespace ECE141 {
 
     enum class ActionType {added, extracted, removed, listed, dumped, compacted};
