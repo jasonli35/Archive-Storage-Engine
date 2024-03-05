@@ -21,7 +21,7 @@
 #include <unordered_map>
 #include <filesystem>
 #include <algorithm>
-
+#include <unordered_set>
 namespace ECE141 {
 
     enum class ActionType {added, extracted, removed, listed, dumped, compacted};
@@ -88,29 +88,40 @@ namespace ECE141 {
     //You'll need to define your own classes for Blocks, and other useful types...
     //--------------------------------------------------------------------------------
     const size_t KBlockSize{1024};
+    const size_t fileNameMaxSize{32};
     struct __attribute__ ((__packed__)) BlockHeader {
-        bool occupied = true;
-        bool isFirstBlock = false;
+        bool occupied = false;
         int next_block = -1;
-        uint32_t fileName;
+        int previous_block_index = -1;
+        uint32_t hash;
     };
-    const size_t data_size = KBlockSize - sizeof(BlockHeader);
+    const size_t data_size = KBlockSize - sizeof(BlockHeader) - fileNameMaxSize;
 
     struct __attribute__ ((__packed__)) Block {
         BlockHeader meta;
+        char fileName[fileNameMaxSize];
         char data[data_size];
     };
 
     class Archive {
     protected:
+        std::string archiveFullPath;
+
         std::vector<std::shared_ptr<IDataProcessor>> processors;
         std::vector<std::shared_ptr<ArchiveObserver>> observers;
-        static std::ofstream write_stream;
-        static std::ifstream read_stream;
-        static bool canOpenFile;
+        std::ofstream write_stream;
+        std::ifstream read_stream;
+
         Archive(const std::string &aFullPath, AccessMode aMode);  //protected on purpose
+        using ArchiveCallBack = std::function<bool(Block &, size_t)>;
+        bool getBlock(Block &aBlock, int aPos);
+        Archive& each(ArchiveCallBack aCallBack);
+
+        void openSteams(const std::string &aFullPath);
 
         std::queue<size_t> free_block_index;
+
+
 
         size_t getNextFreeBlock();
 
@@ -118,9 +129,12 @@ namespace ECE141 {
     public:
 
         ~Archive();  //
-
+        friend class std::shared_ptr<Archive>;
         Archive(const Archive& aCopy);
         Archive& operator=(const Archive& aCopy);
+        friend class std::shared_ptr<ECE141::Archive>;
+
+        static size_t getFileSizeInByte(std::ifstream& readFileStream);
 
         static    ArchiveStatus<std::shared_ptr<Archive>> createArchive(const std::string &anArchiveName);
         static    ArchiveStatus<std::shared_ptr<Archive>> openArchive(const std::string &anArchiveName);
