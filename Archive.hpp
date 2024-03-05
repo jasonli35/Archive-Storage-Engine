@@ -17,9 +17,11 @@
 #include <memory>
 #include <optional>
 #include <stdexcept>
-#include <list>
+#include <queue>
 #include <unordered_map>
 #include <filesystem>
+#include <algorithm>
+
 namespace ECE141 {
 
     enum class ActionType {added, extracted, removed, listed, dumped, compacted};
@@ -86,32 +88,39 @@ namespace ECE141 {
     //You'll need to define your own classes for Blocks, and other useful types...
     //--------------------------------------------------------------------------------
     const size_t KBlockSize{1024};
-    struct BlockHeader {
+    struct __attribute__ ((__packed__)) BlockHeader {
         bool occupied = true;
         bool isFirstBlock = false;
         int next_block = -1;
         uint32_t fileName;
     };
+    const size_t data_size = KBlockSize - sizeof(BlockHeader);
 
-    struct Block {
+    struct __attribute__ ((__packed__)) Block {
         BlockHeader meta;
-        char data[KBlockSize - sizeof(BlockHeader)];
+        char data[data_size];
     };
 
     class Archive {
     protected:
         std::vector<std::shared_ptr<IDataProcessor>> processors;
         std::vector<std::shared_ptr<ArchiveObserver>> observers;
-
-        static std::unordered_map<std::string, std::shared_ptr<Archive>> existing_archive;
+        static std::ofstream write_stream;
+        static std::ifstream read_stream;
+        static bool canOpenFile;
         Archive(const std::string &aFullPath, AccessMode aMode);  //protected on purpose
-        std::list<size_t> free_block_index;
-        std::string fullPath;
-        AccessMode theMode;
+
+        std::queue<size_t> free_block_index;
+
+        size_t getNextFreeBlock();
+
 
     public:
 
         ~Archive();  //
+
+        Archive(const Archive& aCopy);
+        Archive& operator=(const Archive& aCopy);
 
         static    ArchiveStatus<std::shared_ptr<Archive>> createArchive(const std::string &anArchiveName);
         static    ArchiveStatus<std::shared_ptr<Archive>> openArchive(const std::string &anArchiveName);
@@ -136,7 +145,7 @@ namespace ECE141 {
 
     };
 
-//    std::unordered_map<std::string, std::shared_ptr<Archive>> Archive::existing_archive;
+
 
 }
 

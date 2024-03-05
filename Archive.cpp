@@ -9,41 +9,83 @@
 
 namespace ECE141 {
 
+    std::ofstream Archive::write_stream;
+    std::ifstream Archive::read_stream;
+
   //STUDENT put archive class code here...
+  Archive::Archive(const Archive& aCopy) {
+    *this = aCopy;
+  }
+
+  bool Archive::canOpenFile = true;
+
+    Archive& Archive::operator=(const Archive& aCopy) {
+        processors = aCopy.processors;
+        observers = aCopy.observers;
+        free_block_index = aCopy.free_block_index;
+
+
+        return *this;
+   }
+
   ArchiveStatus<std::shared_ptr<Archive>> Archive::createArchive(const std::string &anArchiveName) {
-      std::filesystem::path pathObj(anArchiveName);
+
+      std::string file_path = anArchiveName + ".arc";
+
+      std::filesystem::path pathObj(file_path);
       std::filesystem::path dirPath = pathObj.parent_path();
       if (!std::filesystem::exists(dirPath)) {
           std::filesystem::create_directories(dirPath);
       }
+      Archive theArchive(file_path, AccessMode::AsNew);
+      std::shared_ptr<Archive> theArchivePtr =  std::make_shared<Archive>(theArchive);
 
-      std::string file_path = anArchiveName + ".arc";
-      std::ofstream fStream(file_path);
-      if(!fStream.is_open()) {
+      if(!canOpenFile) {
           return ArchiveStatus<std::shared_ptr<Archive>>(ArchiveErrors::fileOpenError);
       }
 
-      fStream.close();
-      if(fStream.is_open()) {return ArchiveStatus<std::shared_ptr<Archive>>(ArchiveErrors::fileCloseError);}
-      std::shared_ptr<Archive> theArchivePtr =  std::make_shared<Archive>(Archive(file_path, AccessMode::AsNew));
-//      Archive::existing_archive[file_path] = theArchivePtr;
-
       return ArchiveStatus(theArchivePtr);
+
+
   }
 
-    Archive::Archive(const std::string &aFullPath, AccessMode aMode): fullPath(aFullPath), theMode(aMode) {}
+    Archive::Archive(const std::string &aFullPath, AccessMode aMode){
+      if(aMode == AccessMode::AsNew) {
+//          write_stream.open(aFullPath, std::ios::binary | std::ios::trunc);
+          write_stream = std::ofstream (aFullPath, std::ios::trunc);
+      }
+      else {
+          write_stream.open(aFullPath, std::ios::binary);
+          read_stream.open(aFullPath, std::ios::binary);
+      }
+      if(!write_stream.is_open()) {
+          canOpenFile = false;
+      }
+      else {
+          canOpenFile = true;
+      }
+      if(aMode == AccessMode::AsNew) {
+          write_stream.close();
+      }
 
-    Archive::~Archive() {}
+   }
+
+    Archive::~Archive() {
+        if(write_stream.is_open()) {
+            write_stream.close();
+        }
+        if(read_stream.is_open()) {
+            read_stream.close();
+        }
+
+    }
+
+
 
     ArchiveStatus<std::shared_ptr<Archive>> Archive::openArchive(const std::string &anArchiveName) {
-        std::fstream file(anArchiveName);
-        if (!file) {
-            return ArchiveStatus<std::shared_ptr<Archive>>(ArchiveErrors::fileNotFound);
-        }
-//        std::shared_ptr<Archive> theArchivePtr = Archive::existing_archive.at(anArchiveName);
-//        theArchivePtr->theMode = AccessMode::AsExisting;
-//        return ArchiveStatus(theArchivePtr);
-        return ArchiveStatus(std::make_shared<Archive>(Archive("", AccessMode::AsNew)));
+        Archive anArchive(anArchiveName, AccessMode::AsExisting);
+        if(!canOpenFile) {return ArchiveStatus<std::shared_ptr<Archive>>(ArchiveErrors::fileOpenError);}
+        return ArchiveStatus(std::make_shared<Archive>(anArchive));
     }
 
 
@@ -56,14 +98,50 @@ namespace ECE141 {
       return h;
   }
 
+  size_t Archive::getNextFreeBlock() {
+
+        if(!free_block_index.empty()) {
+            size_t index_to_return = free_block_index.front();
+            free_block_index.pop();
+            return index_to_return;
+        }
+        else {
+            read_stream.seekg(0, std::ios::end);
+            return read_stream.tellg() / KBlockSize;
+        }
+    }
+
     ArchiveStatus<bool> Archive::add(const std::string &aFilename) {
-//      std::ifstream readFile(aFilename);
+//      std::ifstream readFile(aFilename, std::ios::binary);
 //      if(!readFile) {return ArchiveStatus<bool>(ArchiveErrors::fileNotFound);}
 //
 //      uint32_t fileName = hashString(aFilename.c_str());
 //      bool addingFristBlock = true;
-//      size_t byteToRead = readFile.tellg();
-//      while(byteToRead > 0) {
+//      size_t byte_left_ToRead = readFile.tellg();
+//      size_t next_block_index = getNextFreeBlock();
+//      while(byte_left_ToRead > 0) {
+//          Block newBlock;
+//          size_t readingBytes = byte_left_ToRead;
+//          size_t this_block_insert_index = next_block_index;
+//          if(byte_left_ToRead > data_size) {
+//              next_block_index = getNextFreeBlock();;
+//              newBlock.meta.next_block = next_block_index;
+//              readingBytes = data_size;
+//          }
+//          if(addingFristBlock) {
+//              newBlock.meta.isFirstBlock == true;
+//              addingFristBlock = false;
+//          }
+//          if(readFile.read(newBlock.data, readingBytes)) {
+//              byte_left_ToRead -= readingBytes;
+//          }
+//          else {
+//              return ArchiveStatus<bool>(ArchiveErrors::fileReadError);
+//          }
+//
+//
+//          write_stream.write(reinterpret_cast<const char*>(&newBlock), sizeof(newBlock));
+//
 //
 //      }
 
