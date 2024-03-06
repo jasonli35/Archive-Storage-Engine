@@ -136,6 +136,7 @@ void Archive::openSteams(const std::string &aFullPath) {
         readFileStream.seekg (0, std::ios::end);
         size_t sizeOfFile = readFileStream.tellg();
         readFileStream.seekg(0, std::ios::beg);
+        readFileStream.clear();
        return sizeOfFile;
   }
 
@@ -165,6 +166,8 @@ void Archive::openSteams(const std::string &aFullPath) {
       size_t current_block_index;
       int next_block_index = -1;
 
+      std::ofstream anOutputStream(archiveFullPath, std::ofstream::binary);
+        // have one output and dont close it
       while(byte_left_ToRead > 0 || (addingFristBlock && byte_left_ToRead == 0)) {
 
           if(next_block_index == -1) {
@@ -193,16 +196,19 @@ void Archive::openSteams(const std::string &aFullPath) {
               newBlockHeader.next_block = next_block_index;
               readingBytes = data_size;
           }
+
           readFile.read(newBlock.data, readingBytes);
           if(readFile) {
               byte_left_ToRead -= readingBytes;
-              readFile.seekg(readingBytes + readFile.tellg());
+              //readFile.seekg(readingBytes + readFile.tellg());
+              // this is an issue becasue read already advance the file pointer
+              // if you advance again it consumes too much next time corruption
           }
           else {
               notify_all_observers(ActionType::added, aFilename, false);
               return ArchiveStatus<bool>(ArchiveErrors::fileReadError);
           }
-          std::ofstream anOutputStream(archiveFullPath, std::ofstream::binary);
+
           anOutputStream.seekp(block_index_to_address(current_block_index));
           if(!anOutputStream.good()) {
               return ArchiveStatus<bool>(ArchiveErrors::fileSeekError);
@@ -213,9 +219,6 @@ void Archive::openSteams(const std::string &aFullPath) {
           if(!anOutputStream.good()) {
               return ArchiveStatus<bool>(ArchiveErrors::fileWriteError);
           }
-          anOutputStream.close();
-          readFile.close();
-
 
       }
 
@@ -281,12 +284,17 @@ void Archive::openSteams(const std::string &aFullPath) {
 
     ArchiveStatus<size_t> Archive::list(std::ostream &aStream) {
         std::unordered_set<uint32_t> existingFile;
+        aStream << "List of files in the archive: " << std::endl;
+        aStream << "--------------------------------" << std::endl;
         each([&] (Block &aBlock, size_t aPos) {
             uint32_t fname_hash = aBlock.meta.hash;
-            if(existingFile.find(fname_hash) == existingFile.end()) {
-                existingFile.insert(fname_hash);
-                aStream << aBlock.fileName << '\n';
-            }
+            aStream<< "fname_hash: " << aBlock.fileName << std::endl;
+            // your hash checker does not work properly you need ot fix commented out lines
+            // for now I added debug at line 287 288 291
+//            if(existingFile.find(fname_hash) == existingFile.end()) {
+//                existingFile.insert(fname_hash);
+//                aStream << aBlock.fileName << '\n';
+//            }
             return true;
         });
 
