@@ -202,18 +202,18 @@ void Archive::openSteams(const std::string &aFullPath) {
               notify_all_observers(ActionType::added, aFilename, false);
               return ArchiveStatus<bool>(ArchiveErrors::fileReadError);
           }
-          std::ofstream anOutputStream(archiveFullPath, std::ofstream::binary);
-          anOutputStream.seekp(block_index_to_address(current_block_index));
-          if(!anOutputStream.good()) {
+          archiveStream.clear();
+          archiveStream.seekp(block_index_to_address(current_block_index));
+          if(!archiveStream.good()) {
               return ArchiveStatus<bool>(ArchiveErrors::fileSeekError);
           }
-          anOutputStream.clear();
-          anOutputStream.write(reinterpret_cast<char*>(&newBlock), KBlockSize);
-          anOutputStream.flush();
-          if(!anOutputStream.good()) {
+          archiveStream.clear();
+          archiveStream.write(reinterpret_cast<char*>(&newBlock), KBlockSize);
+          archiveStream.flush();
+          if(!archiveStream.good()) {
               return ArchiveStatus<bool>(ArchiveErrors::fileWriteError);
           }
-          anOutputStream.close();
+
           readFile.close();
 
 
