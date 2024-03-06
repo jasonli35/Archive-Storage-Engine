@@ -101,7 +101,6 @@ namespace ECE141 {
         bool occupied = false;
         int next_block = -1;
         int previous_block_index = -1;
-        uint32_t hash;
     };
     const size_t data_size = KBlockSize - sizeof(BlockHeader) - fileNameMaxSize;
 
