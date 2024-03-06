@@ -69,7 +69,7 @@ namespace ECE141 {
         ArchiveStatus& operator=(ArchiveStatus&&) noexcept = default;
 
         T getValue() const {
-            if (!isOK()) {
+            if (!isOK()){
                 throw std::runtime_error("Operation failed with error");
             }
             return *value;
@@ -89,6 +89,14 @@ namespace ECE141 {
     //--------------------------------------------------------------------------------
     const size_t KBlockSize{1024};
     const size_t fileNameMaxSize{32};
+
+
+    struct __attribute__ ((__packed__)) FileMeta {
+        size_t endOfFile_index = 0;
+    };
+
+    const std::streampos fileHeader_size = sizeof(FileMeta);
+
     struct __attribute__ ((__packed__)) BlockHeader {
         bool occupied = false;
         int next_block = -1;
@@ -107,23 +115,31 @@ namespace ECE141 {
     protected:
         std::string archiveFullPath;
 
+        std::size_t endOfFilePos;
+
+
         std::vector<std::shared_ptr<IDataProcessor>> processors;
         std::vector<std::shared_ptr<ArchiveObserver>> observers;
-        std::ofstream write_stream;
-        std::ifstream read_stream;
+//        std::ofstream write_stream;
+//        std::ifstream read_stream;
+        std::fstream archiveStream;
 
         Archive(const std::string &aFullPath, AccessMode aMode);  //protected on purpose
         using ArchiveCallBack = std::function<bool(Block &, size_t)>;
         bool getBlock(Block &aBlock, int aPos);
-        Archive& each(ArchiveCallBack aCallBack);
+        Archive& each(const ArchiveCallBack& aCallBack);
 
         void openSteams(const std::string &aFullPath);
 
         std::queue<size_t> free_block_index;
 
-
+        void notify_all_observers(ActionType anAction, const std::string &aName, bool status);
 
         size_t getNextFreeBlock();
+
+        size_t getEOFindex();
+
+        bool check_stream_status (const std::fstream& file_stream_to_check);
 
 
     public:
