@@ -99,13 +99,17 @@ namespace ECE141 {
 
     const std::streampos fileHeader_size = sizeof(FileMeta);
 
+
+
     struct __attribute__ ((__packed__)) BlockHeader {
         bool occupied = false;
         int next_block = -1;
         int previous_block_index = -1;
         size_t byte_stored = 0;
     };
-    const size_t data_size = KBlockSize - sizeof(BlockHeader) - fileNameMaxSize;
+    const size_t BlockHeaderSize = sizeof(BlockHeader);
+
+    const size_t data_size = KBlockSize - BlockHeaderSize - fileNameMaxSize;
 
     struct __attribute__ ((__packed__)) Block {
         BlockHeader meta;
@@ -128,6 +132,7 @@ namespace ECE141 {
 
 
         static std::string process_archive_name(const std::string& aName);
+        bool update_disk_header(BlockHeader& aHeader, size_t index);
         Archive(const std::string &aFullPath, AccessMode aMode);  //protected on purpose
         using ArchiveCallBack = std::function<bool(Block &, size_t)>;
         bool getBlock(Block &aBlock, int aPos);

@@ -268,12 +268,23 @@ void Archive::openSteams(const std::string &aFullPath) {
 
     }
 
+    bool Archive::update_disk_header(BlockHeader& aHeader, size_t index) {
+      archiveStream.clear();
+      archiveStream.seekp(block_index_to_address(index));
+      if(!check_stream_status(archiveStream)) {return false;}
+      archiveStream.write(reinterpret_cast<char*>(&aHeader), BlockHeaderSize);
+      archiveStream.flush();
+      if(!check_stream_status(archiveStream)) {return false;}
+
+  }
+
     ArchiveStatus<bool> Archive::remove(const std::string &aFilename) {
       bool isFileExist = false;
       each([&] (Block& theBlock, size_t aPos) {
           if(theBlock.fileName == aFilename) {
-              theBlock.meta.occupied = false;
-
+              BlockHeader modified_header = theBlock.meta;
+              modified_header.occupied = false;
+              update_disk_header(modified_header, aPos);
               free_block_index.push(aPos);
               isFileExist = true;
           }
