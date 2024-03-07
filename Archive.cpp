@@ -297,7 +297,7 @@ void Archive::openSteams(const std::string &aFullPath) {
 
     bool Archive::check_stream_status (const std::fstream& file_stream_to_check) {
       if(!file_stream_to_check.good()) {
-          std::cout << "Error flags: ";
+//          std::cout << "Error flags: ";
 //          if (file_stream_to_check.rdstate() & std::ios::eofbit)
 //              std::cout << "eof ";
 //          if (file_stream_to_check.rdstate() & std::ios::failbit)
