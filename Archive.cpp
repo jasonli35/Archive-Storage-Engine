@@ -297,14 +297,15 @@ void Archive::openSteams(const std::string &aFullPath) {
 
     bool Archive::check_stream_status (const std::fstream& file_stream_to_check) {
       if(!file_stream_to_check.good()) {
-//          std::cout << "Error flags: ";
+//          std::cerr << "Error flags: ";
 //          if (file_stream_to_check.rdstate() & std::ios::eofbit)
-//              std::cout << "eof ";
+//              std::cerr << "eof ";
 //          if (file_stream_to_check.rdstate() & std::ios::failbit)
-//              std::cout << "fail ";
-          if (file_stream_to_check.rdstate() & std::ios::badbit)
-              std::cout << "bad ";
-          std::cout << std::endl;
+//              std::cerr << "fail ";
+//
+//          if (file_stream_to_check.rdstate() & std::ios::badbit)
+//              std::cerr << "bad ";
+//          std::cerr << std::endl;
           return false;
       }
       return true;
