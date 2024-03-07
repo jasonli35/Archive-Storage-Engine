@@ -93,6 +93,7 @@ namespace ECE141 {
 
     struct __attribute__ ((__packed__)) FileMeta {
         size_t endOfFile_index = 0;
+        char reserve[KBlockSize - sizeof(size_t)];
     };
 
     const std::streampos fileHeader_size = sizeof(FileMeta);
@@ -101,6 +102,7 @@ namespace ECE141 {
         bool occupied = false;
         int next_block = -1;
         int previous_block_index = -1;
+        size_t byte_stored = 0;
     };
     const size_t data_size = KBlockSize - sizeof(BlockHeader) - fileNameMaxSize;
 
@@ -123,10 +125,13 @@ namespace ECE141 {
 //        std::ifstream read_stream;
         std::fstream archiveStream;
 
+
+        static std::string process_archive_name(const std::string& aName);
         Archive(const std::string &aFullPath, AccessMode aMode);  //protected on purpose
         using ArchiveCallBack = std::function<bool(Block &, size_t)>;
         bool getBlock(Block &aBlock, int aPos);
         Archive& each(const ArchiveCallBack& aCallBack);
+        std::string getFileName(const std::string& filePath);
 
         void openSteams(const std::string &aFullPath);
 

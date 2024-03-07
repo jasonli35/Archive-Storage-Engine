@@ -28,29 +28,32 @@ namespace ECE141 {
         return *this;
    }
 
+   std::string Archive::process_archive_name(const std::string& aName) {
+       std::string last3 = aName.substr(aName.size()-4);
+       std::string file_path = aName;
+       if (last3 != ".arc") {
+           file_path+=".arc";
+       }
+       return file_path;
+  }
 
 
   ArchiveStatus<std::shared_ptr<Archive>> Archive::createArchive(const std::string &anArchiveName) {
 
-      std::string file_path = anArchiveName + ".arc";
+      std::string file_path = process_archive_name(anArchiveName);
 
-      std::filesystem::path pathObj(file_path);
-      std::filesystem::path dirPath = pathObj.parent_path();
-      if (!std::filesystem::exists(dirPath)) {
-          std::filesystem::create_directories(dirPath);
-      }
-//      Archive theArchive();
-      Archive theArchiveObj(file_path, AccessMode::AsNew);
-//              std::make_shared<Archive>(file_path, AccessMode::AsNew);
-//
+      auto temp = new Archive(file_path, AccessMode::AsNew);
 
-      return ArchiveStatus(std::make_shared<Archive>(theArchiveObj));
+        if (temp->archiveStream.is_open())
+            return ArchiveStatus(std::shared_ptr<Archive>(temp));
+        else
+            return ArchiveStatus<std::shared_ptr<Archive>>(ArchiveErrors::fileOpenError);
 
 
   }
 
 void Archive::openSteams(const std::string &aFullPath) {
-      archiveStream.open(aFullPath, std::ios::in | std::ios::out | std::ios::binary);
+      archiveStream.open(process_archive_name(aFullPath), std::ios::in | std::ios::out | std::ios::binary);
       if(!archiveStream.is_open()) {
           std::cerr << "archiveStream is not opening" << std::endl;
       }
@@ -66,13 +69,12 @@ void Archive::openSteams(const std::string &aFullPath) {
 
     Archive::Archive(const std::string &aFullPath, AccessMode aMode): archiveFullPath(aFullPath) {
       if(aMode == AccessMode::AsNew) {
-          std::ofstream fileStream(aFullPath, std::ios::trunc);
-          if(!fileStream.is_open()) {
+          archiveStream.open(aFullPath, std::ios::out|std::ios::in|std::ios::binary|std::ios::trunc);
+          if(!archiveStream.is_open()) {
               std::cerr << "Archive file cannot be created" << std::endl;
           }
           else {
               endOfFilePos = 0;
-              fileStream.close();
           }
       }
       else {
@@ -80,19 +82,20 @@ void Archive::openSteams(const std::string &aFullPath) {
           endOfFilePos = getEOFindex();
       }
 
-
    }
 
 
 
     Archive::~Archive() {
-        archiveStream.clear();
-        archiveStream.seekp(0);
-        FileMeta fMeta;
-        fMeta.endOfFile_index = endOfFilePos;
-        archiveStream.clear();
-        archiveStream.write(reinterpret_cast<char*>(&fMeta), fileHeader_size);
+
         if(archiveStream.is_open()) {
+            archiveStream.clear();
+            archiveStream.seekp(0);
+            FileMeta fMeta;
+            fMeta.endOfFile_index = endOfFilePos;
+            archiveStream.clear();
+            archiveStream.write(reinterpret_cast<char*>(&fMeta), fileHeader_size);
+            archiveStream.flush();
             archiveStream.close();
         }
 
@@ -137,13 +140,25 @@ void Archive::openSteams(const std::string &aFullPath) {
       return aPos * KBlockSize + fileHeader_size;
   }
 
+    std::string Archive::getFileName(const std::string& filePath) {
+
+        size_t pos = filePath.find_last_of("/");
+
+        if (pos == std::string::npos) return filePath;
+
+        return filePath.substr(pos + 1);
+    }
+
     ArchiveStatus<bool> Archive::add(const std::string &aFilename) {
-        if(aFilename.size() >= fileNameMaxSize) {
+        std::string short_file_name = getFileName(aFilename);
+
+        if(short_file_name.size() >= fileNameMaxSize) {
             std::cerr << "file name is too long. It must be less than 32 character" <<std::endl;
             notify_all_observers(ActionType::added, aFilename, false);
             return ArchiveStatus<bool>(ArchiveErrors::badFilename);
         }
-      std::ifstream readFile(aFilename, std::ios::binary);
+      std::ifstream readFile(aFilename, std::ifstream::binary);
+
       if(!readFile.good()) {
           notify_all_observers(ActionType::added, aFilename, false);
           return ArchiveStatus<bool>(ArchiveErrors::fileNotFound);
@@ -154,13 +169,12 @@ void Archive::openSteams(const std::string &aFullPath) {
       size_t byte_left_ToRead = Archive::getFileSizeInByte(readFile);
 
 
-      const char* fName_c_string = aFilename.c_str();
-     
+
+
       size_t current_block_index;
       int next_block_index = -1;
 
-      std::ofstream anOutputStream(archiveFullPath, std::ofstream::binary);
-        // have one output and dont close it
+
       while(byte_left_ToRead > 0 || (addingFristBlock && byte_left_ToRead == 0)) {
 
           if(next_block_index == -1) {
@@ -171,7 +185,7 @@ void Archive::openSteams(const std::string &aFullPath) {
           }
           Block newBlock;
 
-          std::strcpy(newBlock.fileName, fName_c_string);
+          std::strcpy(newBlock.fileName, short_file_name.c_str());
 
           size_t readingBytes = byte_left_ToRead;
 
@@ -188,7 +202,7 @@ void Archive::openSteams(const std::string &aFullPath) {
               newBlockHeader.next_block = next_block_index;
               readingBytes = data_size;
           }
-
+          newBlockHeader.byte_stored = readingBytes;
           readFile.read(newBlock.data, readingBytes);
           if(readFile) {
               byte_left_ToRead -= readingBytes;
@@ -202,34 +216,71 @@ void Archive::openSteams(const std::string &aFullPath) {
           archiveStream.clear();
           archiveStream.seekp(block_index_to_address(current_block_index));
 
-          if(!archiveStream.good()) {
+          if(!check_stream_status(archiveStream)) {
               return ArchiveStatus<bool>(ArchiveErrors::fileSeekError);
           }
 
-          archiveStream.clear();
           archiveStream.write(reinterpret_cast<char*>(&newBlock), KBlockSize);
+
           archiveStream.flush();
-          if(!archiveStream.good()) {
+          if(!check_stream_status(archiveStream)) {
               return ArchiveStatus<bool>(ArchiveErrors::fileWriteError);
           }
 
-          readFile.close();
-
-
       }
-
+      readFile.close();
       notify_all_observers(ActionType::added, aFilename, true);
       return ArchiveStatus(true);
     }
 
     ArchiveStatus<bool> Archive::extract(const std::string &aFilename, const std::string &aFullPath) {
+      int current_index = -1;
 
-        return ArchiveStatus(true);
+      std::fstream write_file(aFullPath.c_str(), std::ostream::binary | std::ostream::app | std::ios::out);
+
+        check_stream_status(write_file);
+        each([&] (Block &aBlock, size_t aPos) {
+            if(aBlock.meta.occupied && aBlock.fileName == aFilename && aBlock.meta.previous_block_index == -1) {
+                current_index = aPos;
+                return false;
+            }
+            else {
+                return true;
+            }
+        });
+
+        if(current_index == - 1) {
+            return ArchiveStatus<bool>(false);
+        }
+
+        while(current_index != -1) {
+            Block current_block;
+            getBlock(current_block, current_index);
+            write_file.write(current_block.data, current_block.meta.byte_stored);
+            if(check_stream_status(write_file)) {
+                return ArchiveStatus<bool>(ArchiveErrors::fileWriteError);
+            }
+            current_index = current_block.meta.next_block;
+        }
+
+        return ArchiveStatus<bool>(true);
+
+
     }
 
     ArchiveStatus<bool> Archive::remove(const std::string &aFilename) {
+      bool isFileExist = false;
+      each([&] (Block& theBlock, size_t aPos) {
+          if(theBlock.fileName == aFilename) {
+              theBlock.meta.occupied = false;
 
-        return ArchiveStatus(true);
+              free_block_index.push(aPos);
+              isFileExist = true;
+          }
+          return true;
+      });
+      return ArchiveStatus<bool>(isFileExist);
+
     }
 
     bool Archive::check_stream_status (const std::fstream& file_stream_to_check) {
@@ -248,6 +299,7 @@ void Archive::openSteams(const std::string &aFullPath) {
   }
 
     bool Archive::getBlock(Block &aBlock, int aPos) {
+        archiveStream.clear();
         archiveStream.seekg(block_index_to_address(aPos));
         if(!check_stream_status(archiveStream)) {
             return false;
@@ -262,14 +314,10 @@ void Archive::openSteams(const std::string &aFullPath) {
     Archive& Archive::each(const ArchiveCallBack& aCallBack) {
         int thePos{0};
         bool theResult{true};
-        Block theBlock;
-        archiveStream.clear();
-        archiveStream.seekg(fileHeader_size, std::ios::beg);
-        if(!archiveStream.good()) {
-            std::cerr << "bad seek" << std::endl;
-        }
+
 
         while(theResult) {
+            Block theBlock;
             theResult = getBlock(theBlock, thePos);
             if(theResult) {
                 theResult = aCallBack(theBlock, thePos++);
@@ -280,16 +328,18 @@ void Archive::openSteams(const std::string &aFullPath) {
 
     ArchiveStatus<size_t> Archive::list(std::ostream &aStream) {
         std::unordered_set<std::string> existingFile;
-        aStream << "List of files in the archive: " << std::endl;
+        aStream << "###  name         size       date added" << std::endl;
         aStream << "--------------------------------" << std::endl;
         each([&] (Block &aBlock, size_t aPos) {
-            std::string current_fname = aBlock.fileName;
-            aStream<< "file name: " << current_fname << std::endl;
 
-            if(existingFile.find(current_fname) == existingFile.end()) {
-                existingFile.insert(current_fname);
-                aStream << current_fname << '\n';
+            if(aBlock.meta.occupied) {
+                std::string current_fname = aBlock.fileName;
+                if(!existingFile.count(current_fname)) {
+                    existingFile.insert(current_fname);
+                    aStream << current_fname << '\n';
+                }
             }
+
             return true;
         });
 
@@ -297,8 +347,25 @@ void Archive::openSteams(const std::string &aFullPath) {
         return ArchiveStatus(existingFile.size());
     }
     ArchiveStatus<size_t> Archive::debugDump(std::ostream &aStream) {
+      aStream << "###  status   name    " << std::endl;
+      aStream << "-----------------------" << std::endl;
+      size_t count = 0;
 
-        return ArchiveStatus((size_t) 0);
+      for(size_t i = 0; i < endOfFilePos; ++i) {
+         aStream << count << ".   ";
+         Block currentBlock;
+         getBlock(currentBlock, i);
+         if(currentBlock.meta.occupied) {
+             aStream << "used     " << currentBlock.fileName << std::endl;
+         }
+         else {
+             aStream << "empty" << std::endl;
+         }
+         ++count;
+      }
+
+        return ArchiveStatus(count);
+
     }
 
     ArchiveStatus<size_t> Archive::compact() {
