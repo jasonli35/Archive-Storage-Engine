@@ -300,8 +300,8 @@ void Archive::openSteams(const std::string &aFullPath) {
           std::cout << "Error flags: ";
 //          if (file_stream_to_check.rdstate() & std::ios::eofbit)
 //              std::cout << "eof ";
-          if (file_stream_to_check.rdstate() & std::ios::failbit)
-              std::cout << "fail ";
+//          if (file_stream_to_check.rdstate() & std::ios::failbit)
+//              std::cout << "fail ";
           if (file_stream_to_check.rdstate() & std::ios::badbit)
               std::cout << "bad ";
           std::cout << std::endl;
