@@ -275,6 +275,7 @@ void Archive::openSteams(const std::string &aFullPath) {
       archiveStream.write(reinterpret_cast<char*>(&aHeader), BlockHeaderSize);
       archiveStream.flush();
       if(!check_stream_status(archiveStream)) {return false;}
+      return true;
 
   }
 
