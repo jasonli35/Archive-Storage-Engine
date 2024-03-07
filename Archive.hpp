@@ -22,6 +22,7 @@
 #include <filesystem>
 #include <algorithm>
 #include <unordered_set>
+#include <cstring>
 namespace ECE141 {
 
     enum class ActionType {added, extracted, removed, listed, dumped, compacted};
