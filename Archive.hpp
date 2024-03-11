@@ -94,26 +94,25 @@ namespace ECE141 {
 
     struct __attribute__ ((__packed__)) FileMeta {
         size_t endOfFile_index = 0;
-        char reserve[KBlockSize - sizeof(size_t)];
     };
 
-    const std::streampos fileHeader_size = sizeof(FileMeta);
+    const std::streampos fileHeader_size = KBlockSize;
 
 
 
     struct __attribute__ ((__packed__)) BlockHeader {
         bool occupied = false;
         int next_block = -1;
-        int previous_block_index = -1;
+        int previous_block_index;
         size_t byte_stored = 0;
+        size_t fileName_size = 0;
     };
     const size_t BlockHeaderSize = sizeof(BlockHeader);
 
-    const size_t data_size = KBlockSize - BlockHeaderSize - fileNameMaxSize;
+    const size_t data_size = KBlockSize - BlockHeaderSize;
 
     struct __attribute__ ((__packed__)) Block {
         BlockHeader meta;
-        char fileName[fileNameMaxSize];
         char data[data_size];
     };
 
@@ -150,6 +149,8 @@ namespace ECE141 {
         size_t getEOFindex();
 
         bool check_stream_status (const std::fstream& file_stream_to_check);
+
+        std::string getFileName(const Block& aBlock);
 
 
     public:
