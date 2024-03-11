@@ -120,7 +120,7 @@ namespace ECE141 {
     protected:
         std::string archiveFullPath;
 
-        std::size_t endOfFilePos;
+        std::size_t endOfFilePos = 0;
 
 
         std::vector<std::shared_ptr<IDataProcessor>> processors;
