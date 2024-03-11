@@ -90,7 +90,7 @@ void Archive::openSteams(const std::string &aFullPath) {
             archiveStream.seekp(0);
             archiveStream.clear();
             archiveStream.write(reinterpret_cast<char*>(&endOfFilePos), sizeof(size_t));
-            archiveStream.flush();
+
             archiveStream.close();
         }
 
