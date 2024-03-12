@@ -237,9 +237,11 @@ void Archive::openSteams(const std::string &aFullPath) {
       int current_index = -1;
       Block first_block;
 
-      std::fstream write_file(aFullPath.c_str(), std::ostream::binary | std::ostream::app | std::ios::out);
+        std::fstream write_file(aFullPath, std::ios::out|std::ios::in|std::ios::binary|std::ios::trunc);
 
-        check_stream_status(write_file);
+        if(!check_stream_status(write_file)) {
+            return ArchiveStatus<bool>(ArchiveErrors::fileCreateError);
+        }
         each([&] (Block &aBlock, size_t aPos) {
             std::string data(aBlock.data);
             const std::string block_file_name = data.substr(0, aBlock.meta.fileName_size - 1);
@@ -265,7 +267,7 @@ void Archive::openSteams(const std::string &aFullPath) {
             getBlock(current_block, current_index);
 
             write_file.write(current_block.data + file_size, current_block.meta.byte_stored - file_size);
-            if(!check_stream_status(write_file)) {
+            if(!write_file.good()) {
                 return ArchiveStatus<bool>(ArchiveErrors::fileWriteError);
             }
             current_index = current_block.meta.next_block;
