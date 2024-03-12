@@ -62,7 +62,7 @@ namespace ECE141 {
         fileNotFound=1, fileExists, fileOpenError, fileReadError, fileWriteError, fileCloseError,
         fileSeekError, fileTellError, fileError, badFilename, badPath, badData, badBlock, badArchive,
         badAction, badMode, badProcessor, badBlockType, badBlockCount, badBlockIndex, badBlockData,
-        badBlockHash, badBlockNumber, badBlockLength, badBlockDataLength, badBlockTypeLength
+        badBlockHash, badBlockNumber, badBlockLength, badBlockDataLength, badBlockTypeLength, fileCreateError
     };
 
     template<typename T>
