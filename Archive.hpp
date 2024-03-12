@@ -36,7 +36,24 @@ namespace ECE141 {
     public:
         virtual std::vector<uint8_t> process(const std::vector<uint8_t>& input) = 0;
         virtual std::vector<uint8_t> reverseProcess(const std::vector<uint8_t>& input) = 0;
+        virtual ~IDataProcessor(){};
     };
+
+    /** This is new child class of data processor, use it to compress the if add asks for it*/
+    class Compression : public IDataProcessor {
+    public:
+        std::vector<uint8_t> process(const std::vector<uint8_t>& input) override {
+            // write the compress process here
+        }
+
+        std::vector<uint8_t> reverseProcess(const std::vector<uint8_t>& input) override {
+            // write the compress process here
+            return input;
+        }
+        ~Compression() override = default;
+    };
+
+
 
     enum class ArchiveErrors {
         noError=0,
@@ -101,9 +118,10 @@ namespace ECE141 {
 
 
     struct __attribute__ ((__packed__)) BlockHeader {
+        signed long long next_block = -1; //this is varaible is first for a reason
         bool occupied = false;
-        int next_block = -1;
-        int previous_block_index;
+
+        signed long long previous_block_index = -1;
         size_t byte_stored = 0;
         size_t fileName_size = 0;
     };
@@ -134,7 +152,7 @@ namespace ECE141 {
         bool update_disk_header(BlockHeader& aHeader, size_t index);
         Archive(const std::string &aFullPath, AccessMode aMode);  //protected on purpose
         using ArchiveCallBack = std::function<bool(Block &, size_t)>;
-        bool getBlock(Block &aBlock, int aPos);
+        bool getBlock(Block &aBlock, signed long long aPos);
         Archive& each(const ArchiveCallBack& aCallBack);
         std::string getFileName(const std::string& filePath);
 
@@ -146,11 +164,15 @@ namespace ECE141 {
 
         size_t getNextFreeBlock();
 
+        ArchiveStatus<size_t> update_parent_index(signed long long parent_block_index, signed long long children_index);
+
         size_t getEOFindex();
 
         bool check_stream_status (const std::fstream& file_stream_to_check);
 
         std::string getFileName(const Block& aBlock);
+
+        ArchiveStatus<bool> writeBlockToFile(Block& theBlock, size_t index);
 
 
     public:
@@ -170,7 +192,7 @@ namespace ECE141 {
 
         static uint32_t hashString(const char *str);
 
-        ArchiveStatus<bool>      add(const std::string &aFilename);
+        ArchiveStatus<bool>      add(const std::string &aFilename, IDataProcessor* aProcessor=nullptr);
         ArchiveStatus<bool>      extract(const std::string &aFilename, const std::string &aFullPath);
         ArchiveStatus<bool>      remove(const std::string &aFilename);
 
@@ -179,6 +201,8 @@ namespace ECE141 {
 
         ArchiveStatus<size_t>    compact();
         ArchiveStatus<std::string> getFullPath() const; //get archive path (including .arc extension)
+
+
 
 
 

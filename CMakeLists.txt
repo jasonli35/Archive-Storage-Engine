@@ -3,6 +3,9 @@ project(ECE141-Archive)
 
 set(CMAKE_CXX_STANDARD 17)
 
+# Find zlib library
+find_package(ZLIB REQUIRED)
+
 include_directories(.)
 
 add_executable(archive
@@ -13,3 +16,7 @@ add_executable(archive
         Testing.hpp
         Timer.hpp
         Tracker.hpp)
+
+# Link against zlib library
+target_link_libraries(archive PRIVATE ${ZLIB_LIBRARIES})
+target_include_directories(archive PRIVATE ${ZLIB_INCLUDE_DIRS})

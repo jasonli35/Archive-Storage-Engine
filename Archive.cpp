@@ -131,7 +131,7 @@ void Archive::openSteams(const std::string &aFullPath) {
        return sizeOfFile;
   }
 
-  std::streampos block_index_to_address(size_t aPos) {
+  std::streampos block_index_to_address(signed long long aPos) {
       return (std::streampos )aPos * KBlockSize + fileHeader_size;
   }
 
@@ -144,7 +144,25 @@ void Archive::openSteams(const std::string &aFullPath) {
         return filePath.substr(pos + 1);
     }
 
-    ArchiveStatus<bool> Archive::add(const std::string &aFilename) {
+    ArchiveStatus<bool> Archive::writeBlockToFile(Block& theBlock, size_t index) {
+        archiveStream.clear();
+        archiveStream.seekp(block_index_to_address(index));
+
+        if(!check_stream_status(archiveStream)) {
+            return ArchiveStatus<bool>(ArchiveErrors::fileSeekError);
+        }
+
+
+        archiveStream.write(reinterpret_cast<char*>(&theBlock), theBlock.meta.byte_stored + BlockHeaderSize);
+
+        archiveStream.flush();
+        if(!check_stream_status(archiveStream)) {
+            return ArchiveStatus<bool>(ArchiveErrors::fileWriteError);
+        }
+        return ArchiveStatus<bool>(true);
+  }
+
+    ArchiveStatus<bool> Archive::add(const std::string &aFilename, IDataProcessor* aProcessor) {
         std::string short_file_name = getFileName(aFilename);
         size_t file_name_size = short_file_name.size() + 1;
         size_t buffer_size = data_size - file_name_size;
@@ -204,20 +222,8 @@ void Archive::openSteams(const std::string &aFullPath) {
               return ArchiveStatus<bool>(ArchiveErrors::fileReadError);
           }
 
-          archiveStream.clear();
-          archiveStream.seekp(block_index_to_address(current_block_index));
-
-          if(!check_stream_status(archiveStream)) {
-              return ArchiveStatus<bool>(ArchiveErrors::fileSeekError);
-          }
-          archiveStream.write(reinterpret_cast<char*>(&newBlockHeader), BlockHeaderSize);
-
-          archiveStream.write(reinterpret_cast<char*>(&newBlock.data), newBlockHeader.byte_stored);
-
-          archiveStream.flush();
-          if(!check_stream_status(archiveStream)) {
-              return ArchiveStatus<bool>(ArchiveErrors::fileWriteError);
-          }
+          ArchiveStatus<bool> status = writeBlockToFile(newBlock, current_block_index);
+          if(!status.isOK()) {return status;}
 
       }
       readFile.close();
@@ -236,7 +242,8 @@ void Archive::openSteams(const std::string &aFullPath) {
         check_stream_status(write_file);
         each([&] (Block &aBlock, size_t aPos) {
             std::string data(aBlock.data);
-            if(aBlock.meta.occupied && data.substr(0, aBlock.meta.fileName_size - 1) == aFilename && aBlock.meta.previous_block_index == -1) {
+            const std::string block_file_name = data.substr(0, aBlock.meta.fileName_size - 1);
+            if(aBlock.meta.occupied && block_file_name.compare(aFilename) == 0 && aBlock.meta.previous_block_index == -1) {
                 current_index = aPos;
                 first_block = aBlock;
 
@@ -258,7 +265,7 @@ void Archive::openSteams(const std::string &aFullPath) {
             getBlock(current_block, current_index);
 
             write_file.write(current_block.data + file_size, current_block.meta.byte_stored - file_size);
-            if(check_stream_status(write_file)) {
+            if(!check_stream_status(write_file)) {
                 return ArchiveStatus<bool>(ArchiveErrors::fileWriteError);
             }
             current_index = current_block.meta.next_block;
@@ -304,21 +311,21 @@ void Archive::openSteams(const std::string &aFullPath) {
 
     bool Archive::check_stream_status (const std::fstream& file_stream_to_check) {
       if(!file_stream_to_check.good()) {
-//          std::cerr << "Error flags: ";
-//          if (file_stream_to_check.rdstate() & std::ios::eofbit)
-//              std::cerr << "eof ";
-//          if (file_stream_to_check.rdstate() & std::ios::failbit)
-//              std::cerr << "fail ";
-//
-//          if (file_stream_to_check.rdstate() & std::ios::badbit)
-//              std::cerr << "bad ";
-//          std::cerr << std::endl;
+          std::cerr << "Error flags: ";
+          if (file_stream_to_check.rdstate() & std::ios::eofbit)
+              std::cerr << "eof ";
+          if (file_stream_to_check.rdstate() & std::ios::failbit)
+              std::cerr << "fail ";
+
+          if (file_stream_to_check.rdstate() & std::ios::badbit)
+              std::cerr << "bad ";
+          std::cerr << std::endl;
           return false;
       }
       return true;
   }
 
-    bool Archive::getBlock(Block &aBlock, int aPos) {
+    bool Archive::getBlock(Block &aBlock, signed long long aPos) {
         archiveStream.clear();
         archiveStream.seekg(block_index_to_address(aPos));
         if(!check_stream_status(archiveStream)) {
@@ -387,10 +394,38 @@ void Archive::openSteams(const std::string &aFullPath) {
         return ArchiveStatus(count);
 
     }
+    ArchiveStatus<size_t> Archive::update_parent_index(signed long long parent_block_index, signed long long children_index) {
+      archiveStream.clear();
+      archiveStream.seekp(block_index_to_address(parent_block_index));
+      if(!check_stream_status(archiveStream)) {return ArchiveStatus<size_t>(ArchiveErrors::fileSeekError);}
+        archiveStream.write(reinterpret_cast<char*>(&children_index), sizeof (children_index));
+      if(!check_stream_status(archiveStream)) {return ArchiveStatus<size_t>(ArchiveErrors::fileWriteError);}
+      return ArchiveStatus<size_t>(1);
+   }
 
     ArchiveStatus<size_t> Archive::compact() {
+        ArchiveStatus<size_t> numBlockRemoved(0) ;
+        each([&] (Block& theBlock, size_t thePos) {
+            if(!theBlock.meta.occupied) {
+                Block last_Block;
+                getBlock(last_Block, --endOfFilePos);
 
-        return ArchiveStatus((size_t) 0);
+                writeBlockToFile(last_Block, thePos);
+                signed long long int parent_block_index = last_Block.meta.previous_block_index;
+                if(parent_block_index != -1) {
+                    numBlockRemoved = update_parent_index(parent_block_index, thePos);
+                    if(!numBlockRemoved.isOK()) {
+                        return false;
+                    }
+                    else {
+                        numBlockRemoved = ArchiveStatus<size_t> (numBlockRemoved.getValue() + 1);
+                    }
+                }
+            }
+            return true;
+        });
+
+        return numBlockRemoved;
     }
 
     ArchiveStatus<std::string> Archive::getFullPath() const {
@@ -413,6 +448,8 @@ void Archive::openSteams(const std::string &aFullPath) {
     void ArchiveObserver::operator()(ActionType anAction, const std::string &aName, bool status) {
 
    }
+
+
 
 
 

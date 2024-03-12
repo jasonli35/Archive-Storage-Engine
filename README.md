@@ -283,5 +283,60 @@ Due Mar 4, 2023 at 11:30pm  (PST)
 Make sure to turn in your code, and update the associated `student.json` file. 
 
 
+Let's build an archival system - Part 2
+### Due Mar 15, 2023 at 11:30pm  (PST)
+
+## Introduction
+
+In this assignment, you're going to continue building on the archival system you started in Assignment 4. In this
+assignment, you will add processing capabilities to the archival system. This will be done in add file method.
+If a IDataProcessor is provided, the file will be processed before adding to the archive. You will only have to support
+the compression and decompression of files in this assignment. We have provided the IDataProcessor interface and the
+CompressionProcessor class. You will have to implement the process and reverseProcess methods in the CompressionProcessor
+
+This assignment is also an oppurtunity to refactor your code and improve it from the previous assignment. You should think
+about how you can make your code more modular, easier to understand and debug since it will be used in the Final. 
+
+### Overview
+You should first make sure your extract function works. There was a bug that we discovered in last assignment. Extract test
+was passing but the file was not being extracted properly. You should make sure you can pass the extract test before moving 
+on to the next steps.
+
+You should implement the process and reverseProcess methods in the CompressionProcessor class. The process method should
+compress the file and the reverseProcess method should decompress the file. You should think about how convey a block has been 
+processed so that extract can reverse the process.
+
+#### IDataProcessor
+This is the interface that compressor with inherit from. It has two methods process and reverseProcess. 
+#### CompressionProcessor
+This is the class that will implement the IDataProcessor interface. It will have two methods process and reverseProcess.
+The process method should compress the file and the reverseProcess method should decompress the file. You should think about how convey 
+a block has been processed so that extract can reverse the process.
+##### Compression Process
+You are free to use any compression algorithm you want. We have configured the CMAKElist to use the zlib library. If you want to use a different
+library, you will have to change the CMAKElist. You can also write your own compression algorithm for extra credit. 
+###### Linking to external libraries in C++
+In C++ compilation happens in multiple stages. The compiler compiles the source code into object files. Then the linker links the object files to 
+produce the final executable. When you use external libraries, you have to tell the linker where to find the library. This is done using the -l flag.
+CMakeLists.txt file is used to tell the compiler and linker how to compile and link the code. You can see the CMakeLists.txt file in the starter code.
+
+
+### Grading Rubric 
+Your solution will be graded using the following rubric:
+
+1. Create archive test -- 5%
+2. Open archive test -- 5%
+3. Add documents test -- 7.5%
+4. Extract documents test -- 15%
+5. Remove documents test -- 7.5%
+6. List documents test -- 5%
+7. Dump blocks test -- 5%
+8. Stress Test -- 10%
+9. Warnings and Memory Issues 2.5%
+10. Process and reverseProcess methods in CompressionProcessor -- 32.5%
+
+
+
+
 
 
