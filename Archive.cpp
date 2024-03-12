@@ -376,10 +376,11 @@ void Archive::openSteams(const std::string &aFullPath) {
     ArchiveStatus<size_t> Archive::debugDump(std::ostream &aStream) {
       aStream << "###  status   name    " << std::endl;
       aStream << "-----------------------" << std::endl;
-      size_t count = 0;
 
-      for(size_t i = 0; i < endOfFilePos; ++i) {
-         aStream << count << ".   ";
+      size_t i = 0;
+
+      while(i < endOfFilePos) {
+         aStream << ++i << ".   ";
          Block currentBlock;
          getBlock(currentBlock, i);
          if(currentBlock.meta.occupied) {
@@ -388,10 +389,10 @@ void Archive::openSteams(const std::string &aFullPath) {
          else {
              aStream << "empty" << std::endl;
          }
-         ++count;
+
       }
 
-        return ArchiveStatus(count);
+        return ArchiveStatus(endOfFilePos);
 
     }
     ArchiveStatus<size_t> Archive::update_parent_index(signed long long parent_block_index, signed long long children_index) {

@@ -44,6 +44,8 @@ namespace ECE141 {
     public:
         std::vector<uint8_t> process(const std::vector<uint8_t>& input) override {
             // write the compress process here
+
+            return std::vector<uint8_t >(0);
         }
 
         std::vector<uint8_t> reverseProcess(const std::vector<uint8_t>& input) override {
@@ -120,7 +122,6 @@ namespace ECE141 {
     struct __attribute__ ((__packed__)) BlockHeader {
         signed long long next_block = -1; //this is varaible is first for a reason
         bool occupied = false;
-
         signed long long previous_block_index = -1;
         size_t byte_stored = 0;
         size_t fileName_size = 0;
