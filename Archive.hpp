@@ -124,6 +124,8 @@ namespace ECE141 {
 //        std::ifstream read_stream;
         std::fstream archiveStream;
 
+        void findFirstBlock(size_t& index, size_t& fileName_size, const std::string &aFilename);
+
 
         static std::string process_archive_name(const std::string& aName);
         bool update_disk_header(BlockHeader& aHeader, size_t index);

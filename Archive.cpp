@@ -206,50 +206,47 @@ void Archive::openSteams(const std::string &aFullPath) {
     }
 
 
-
-    ArchiveStatus<bool> Archive::extract(const std::string &aFilename, const std::string &aFullPath) {
-      int current_index = -1;
-      Block first_block;
-
-        std::fstream write_file(aFullPath, std::ios::out|std::ios::in|std::ios::binary|std::ios::trunc);
-
-        if(!check_stream_status(write_file)) {
-            return ArchiveStatus<bool>(ArchiveErrors::fileCreateError);
-        }
+    void Archive::findFirstBlock(size_t& index, size_t& fileName_size, const std::string &aFilename) {
         each([&] (Block &aBlock, size_t aPos) {
             std::string data(aBlock.data);
             const std::string block_file_name = data.substr(0, aBlock.meta.fileName_size - 1);
             if(aBlock.meta.occupied && block_file_name.compare(aFilename) == 0 && aBlock.meta.previous_block_index == -1) {
-                current_index = aPos;
-                first_block = aBlock;
-
+                index = aPos;
+                fileName_size = aBlock.meta.fileName_size;
                 return false;
             }
             else {
                 return true;
             }
         });
+    }
+
+
+
+    ArchiveStatus<bool> Archive::extract(const std::string &aFilename, const std::string &aFullPath) {
+        size_t current_index = -1;
+        size_t file_name_size;
+        findFirstBlock(current_index, file_name_size, aFilename);
 
         if(current_index == - 1) {
             return ArchiveStatus<bool>(false);
         }
 
-        size_t file_name_size = first_block.meta.fileName_size;
+        std::fstream write_file(aFullPath, std::ios::out|std::ios::in|std::ios::binary|std::ios::trunc);
+        if(!check_stream_status(write_file)) {
+            return ArchiveStatus<bool>(ArchiveErrors::fileCreateError);
+        }
 
         while(current_index != -1) {
             Block current_block;
             getBlock(current_block, current_index);
-
             write_file.write(current_block.data + file_name_size, current_block.meta.byte_stored);
             if(!write_file.good()) {
                 return ArchiveStatus<bool>(ArchiveErrors::fileWriteError);
             }
             current_index = current_block.meta.next_block;
         }
-
         return ArchiveStatus<bool>(true);
-
-
     }
 
     bool Archive::update_disk_header(BlockHeader& aHeader, size_t index) {
