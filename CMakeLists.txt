@@ -15,7 +15,10 @@ add_executable(archive
         Testable.hpp
         Testing.hpp
         Timer.hpp
-        Tracker.hpp)
+        Tracker.hpp
+        Chunker.hpp
+        Chunker.hpp
+)
 
 # Link against zlib library
 target_link_libraries(archive PRIVATE ${ZLIB_LIBRARIES})

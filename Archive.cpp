@@ -68,17 +68,11 @@ void Archive::openSteams(const std::string &aFullPath) {
           if(!archiveStream.is_open()) {
               std::cerr << "Archive file cannot be created" << std::endl;
           }
-          else {
-              endOfFilePos = 0;
-          }
+
       }
       else {
           openSteams(aFullPath);
-          archiveStream.seekg(0, std::ios::beg);
-          check_stream_status(archiveStream);
-          archiveStream.read(reinterpret_cast<char*>(&endOfFilePos), sizeof(size_t));
       }
-
    }
 
 
@@ -86,11 +80,6 @@ void Archive::openSteams(const std::string &aFullPath) {
     Archive::~Archive() {
 
         if(archiveStream.is_open()) {
-            archiveStream.clear();
-            archiveStream.seekp(0);
-            archiveStream.clear();
-            archiveStream.write(reinterpret_cast<char*>(&endOfFilePos), sizeof(size_t));
-
             archiveStream.close();
         }
 
@@ -100,7 +89,6 @@ void Archive::openSteams(const std::string &aFullPath) {
 
     ArchiveStatus<std::shared_ptr<Archive>> Archive::openArchive(const std::string &anArchiveName) {
         Archive anArchive(anArchiveName, AccessMode::AsExisting);
-
         if(!anArchive.archiveStream.is_open()) {return ArchiveStatus<std::shared_ptr<Archive>>(ArchiveErrors::badPath);}
         return ArchiveStatus(std::make_shared<Archive>(anArchive));
     }
@@ -108,21 +96,8 @@ void Archive::openSteams(const std::string &aFullPath) {
 
 
 
-  size_t Archive::getNextFreeBlock() {
 
-        if(!free_block_index.empty()) {
-            size_t index = free_block_index.front();
-            free_block_index.pop();
-            return index;
-        }
-        else {
-            return endOfFilePos++;
-        }
-    }
-
-
-
-    size_t Archive::getFileSizeInByte(std::ifstream& readFileStream) {
+    size_t Archive::getFileSizeInByte(std::fstream& readFileStream) {
 
         readFileStream.seekg (0, std::ios::end);
         size_t sizeOfFile = readFileStream.tellg();
@@ -132,7 +107,7 @@ void Archive::openSteams(const std::string &aFullPath) {
   }
 
   std::streampos block_index_to_address(signed long long aPos) {
-      return (std::streampos )aPos * KBlockSize + fileHeader_size;
+      return (std::streampos )aPos * KBlockSize;
   }
 
     std::string Archive::getFileName(const std::string& filePath) {
@@ -153,7 +128,7 @@ void Archive::openSteams(const std::string &aFullPath) {
         }
 
 
-        archiveStream.write(reinterpret_cast<char*>(&theBlock), theBlock.meta.byte_stored + BlockHeaderSize);
+        archiveStream.write(reinterpret_cast<char*>(&theBlock), theBlock.meta.byte_stored + BlockHeaderSize + theBlock.meta.fileName_size);
 
         archiveStream.flush();
         if(!check_stream_status(archiveStream)) {
@@ -162,70 +137,126 @@ void Archive::openSteams(const std::string &aFullPath) {
         return ArchiveStatus<bool>(true);
   }
 
+//    std::vector<uint8_t>  fStreamToVectorAdpoter(std::fstream aFstream) {
+//      return std::vector<uint8_t>(std::istreambuf_iterator<char>(aFstream),  std::istreambuf_iterator<char>());
+//  }
+//
+//    std::fstream vectorToFstreamAdpoter(std::vector<uint8_t> data) {
+//      std::fstream file(aFileStream, std::ios::out | std::ios::binary);
+//      return
+//  }
+
+    size_t Archive::countBlocks() {
+        archiveStream.clear(); //just in case
+        archiveStream.seekg(0, std::ios::end);
+        std::streampos thePos = archiveStream.tellg();
+        return static_cast<size_t>(thePos / KBlockSize + (thePos % KBlockSize ? 1: 0));
+    }
+
+    //get N free blocks (may be 'unoccupied' or appended block #'s)
+    ArchiveStatus<bool> Archive::getFreeBlocks(size_t aCount, IntVector &aList) {
+        if(aCount < 1) {return ArchiveStatus<bool>(ArchiveErrors::invalidArgument);}
+        aList.clear(); //erase previous contents...
+        aList.push_back(-1);
+        size_t end_index = aCount + 1;
+        each([&](Block &aBlock, size_t aPos) { //naive approach...
+            if(!aBlock.meta.occupied) {
+                aList.push_back(aPos);
+            }
+            return (aList.size()==end_index); //quit once we have aCount items...
+        });
+        size_t theBCount=countBlocks();
+        while(aList.size()<end_index) {
+            aList.push_back(theBCount++);
+        }
+        aList.push_back(-1); //makes linking block logic easier...
+        return ArchiveStatus<bool>(true);  //lacks error handling
+    }
+
+
+
     ArchiveStatus<bool> Archive::add(const std::string &aFilename, IDataProcessor* aProcessor) {
         std::string short_file_name = getFileName(aFilename);
         size_t file_name_size = short_file_name.size() + 1;
-        size_t buffer_size = data_size - file_name_size;
-
-      std::ifstream readFile(aFilename, std::ifstream::binary);
-
+        //std::ios::out|std::ios::in|std::ios::binary|std::ios::trunc
+      std::fstream readFile(aFilename, std::ios::in|std::ios::binary);
       if(!readFile.good()) {
           notify_all_observers(ActionType::added, aFilename, false);
           return ArchiveStatus<bool>(ArchiveErrors::fileNotFound);
       }
+      ECE141::Chunker theChunker(readFile, file_name_size);
+      IntVector thePlaces;
+      size_t payload_size = data_size - file_name_size;
+      getFreeBlocks(theChunker.chunkCount(), thePlaces);
+      theChunker.each([&](ECE141::Block& aBlock, size_t aPartNum, size_t writen_size) {
+            BlockHeader& currentHeader = aBlock.meta;
+            currentHeader.occupied=true;
+            currentHeader.previous_block_index = thePlaces[aPartNum];
+            currentHeader.next_block = thePlaces[aPartNum + 2];
+            currentHeader.byte_stored = writen_size;
+            currentHeader.fileName_size = file_name_size;
+            std::strcpy(aBlock.data, short_file_name.c_str());
+            ArchiveStatus<bool> status = writeBlockToFile(aBlock, thePlaces[aPartNum + 1]);
+            return status.getValue();
+      });
 
 
-      bool addingFristBlock = true;
-      size_t byte_left_ToRead = Archive::getFileSizeInByte(readFile);
+
+//      size_t buffer_size = data_size - file_name_size;
 
 
-      size_t current_block_index;
-      int next_block_index = -1;
+//      bool addingFristBlock = true;
+//      size_t byte_left_ToRead = Archive::getFileSizeInByte(readFile);
+
+//
+//      size_t current_block_index;
+//      int next_block_index = -1;
 
 
-      while(byte_left_ToRead > 0 || (addingFristBlock && byte_left_ToRead == 0)) {
+//      while(byte_left_ToRead > 0 || (addingFristBlock && byte_left_ToRead == 0)) {
+//
+//          if(next_block_index == -1) {
+//              current_block_index = getNextFreeBlock();
+//          }
+//          else {
+//              current_block_index = next_block_index;
+//          }
+//          Block newBlock;
+//
+//          std::strcpy(newBlock.data, short_file_name.c_str());
+//
+//          size_t readingBytes = byte_left_ToRead;
+//
+//          BlockHeader &newBlockHeader = newBlock.meta;
+//          newBlockHeader.fileName_size = file_name_size;
+//          newBlockHeader.occupied = true;
+//          newBlockHeader.previous_block_index = current_block_index;
+//          if(addingFristBlock) {
+//              newBlockHeader.previous_block_index = -1; //indicate first block of the file that copy from
+//              addingFristBlock = false;
+//          }
+//           // set it to the current inserting block index
+//          if(byte_left_ToRead > buffer_size) {
+//              next_block_index = getNextFreeBlock();
+//              newBlockHeader.next_block = next_block_index;
+//              readingBytes = buffer_size;
+//          }
+//          newBlockHeader.byte_stored = readingBytes + file_name_size;
+//          readFile.read(newBlock.data + file_name_size, readingBytes);
+//          if(readFile) {
+//              byte_left_ToRead -= readingBytes;
+//
+//          }
+//          else {
+//              notify_all_observers(ActionType::added, aFilename, false);
+//              return ArchiveStatus<bool>(ArchiveErrors::fileReadError);
+//          }
+//
+//          ArchiveStatus<bool> status = writeBlockToFile(newBlock, current_block_index);
+//          if(!status.isOK()) {return status;}
+//
+//      }
 
-          if(next_block_index == -1) {
-              current_block_index = getNextFreeBlock();
-          }
-          else {
-              current_block_index = next_block_index;
-          }
-          Block newBlock;
-
-          std::strcpy(newBlock.data, short_file_name.c_str());
-
-          size_t readingBytes = byte_left_ToRead;
-
-          BlockHeader &newBlockHeader = newBlock.meta;
-          newBlockHeader.fileName_size = file_name_size;
-          newBlockHeader.occupied = true;
-          newBlockHeader.previous_block_index = current_block_index;
-          if(addingFristBlock) {
-              newBlockHeader.previous_block_index = -1; //indicate first block of the file that copy from
-              addingFristBlock = false;
-          }
-           // set it to the current inserting block index
-          if(byte_left_ToRead > buffer_size) {
-              next_block_index = getNextFreeBlock();
-              newBlockHeader.next_block = next_block_index;
-              readingBytes = buffer_size;
-          }
-          newBlockHeader.byte_stored = readingBytes + file_name_size;
-          readFile.read(newBlock.data + file_name_size, readingBytes);
-          if(readFile) {
-              byte_left_ToRead -= readingBytes;
-
-          }
-          else {
-              notify_all_observers(ActionType::added, aFilename, false);
-              return ArchiveStatus<bool>(ArchiveErrors::fileReadError);
-          }
-
-          ArchiveStatus<bool> status = writeBlockToFile(newBlock, current_block_index);
-          if(!status.isOK()) {return status;}
-
-      }
       readFile.close();
       notify_all_observers(ActionType::added, aFilename, true);
       return ArchiveStatus(true);
@@ -260,13 +291,13 @@ void Archive::openSteams(const std::string &aFullPath) {
             return ArchiveStatus<bool>(false);
         }
 
-        size_t file_size = first_block.meta.fileName_size;
+        size_t file_name_size = first_block.meta.fileName_size;
 
         while(current_index != -1) {
             Block current_block;
             getBlock(current_block, current_index);
 
-            write_file.write(current_block.data + file_size, current_block.meta.byte_stored - file_size);
+            write_file.write(current_block.data + file_name_size, current_block.meta.byte_stored);
             if(!write_file.good()) {
                 return ArchiveStatus<bool>(ArchiveErrors::fileWriteError);
             }
@@ -381,20 +412,18 @@ void Archive::openSteams(const std::string &aFullPath) {
 
       size_t i = 0;
 
-      while(i < endOfFilePos) {
+      each([&](Block& theBlock, size_t thePos) {
          aStream << ++i << ".   ";
-         Block currentBlock;
-         getBlock(currentBlock, i);
-         if(currentBlock.meta.occupied) {
-             aStream << "used     " << getFileName(currentBlock) << std::endl;
+         if(theBlock.meta.occupied) {
+             aStream << "used     " << getFileName(theBlock) << std::endl;
          }
          else {
              aStream << "empty" << std::endl;
          }
+         return true;
+      });
 
-      }
-
-        return ArchiveStatus(endOfFilePos);
+        return ArchiveStatus(i);
 
     }
     ArchiveStatus<size_t> Archive::update_parent_index(signed long long parent_block_index, signed long long children_index) {
@@ -407,11 +436,18 @@ void Archive::openSteams(const std::string &aFullPath) {
    }
 
     ArchiveStatus<size_t> Archive::compact() {
+      size_t lastChunkIndex = countBlocks();
         ArchiveStatus<size_t> numBlockRemoved(0) ;
         each([&] (Block& theBlock, size_t thePos) {
+
             if(!theBlock.meta.occupied) {
                 Block last_Block;
-                getBlock(last_Block, --endOfFilePos);
+                do {
+                    if(--lastChunkIndex <= thePos) {
+                        return false;
+                    }
+                    getBlock(last_Block, lastChunkIndex);
+                } while(!last_Block.meta.occupied);
 
                 writeBlockToFile(last_Block, thePos);
                 signed long long int parent_block_index = last_Block.meta.previous_block_index;
@@ -431,10 +467,7 @@ void Archive::openSteams(const std::string &aFullPath) {
         return numBlockRemoved;
     }
 
-    ArchiveStatus<std::string> Archive::getFullPath() const {
 
-        return ArchiveStatus((std::string)"");
-    }
 
     Archive&  Archive::addObserver(std::shared_ptr<ArchiveObserver> anObserver) {
         observers.push_back(anObserver);
@@ -451,6 +484,25 @@ void Archive::openSteams(const std::string &aFullPath) {
     void ArchiveObserver::operator()(ActionType anAction, const std::string &aName, bool status) {
 
    }
+
+    std::vector<uint8_t> Compression::process(const std::vector<uint8_t>& input) {
+      orignal_size += input.size();
+      uLongf compressedSize = compressBound(orignal_size);
+      std::vector<uint8_t> output(compressedSize);
+      if (compress(output.data(), &compressedSize, input.data(), orignal_size) != Z_OK) {
+            std::cerr << "Compression failed!" << std::endl;
+      }
+
+      return output;
+    }
+
+    std::vector<uint8_t> Compression::reverseProcess(const std::vector<uint8_t>& input) {
+      std::vector<uint8_t> original(orignal_size);
+      if(uncompress(original.data(), &orignal_size, input.data(), input.size()) != Z_OK) {
+          std::cerr << "reverse compression failed!" << std::endl;
+      }
+      return input;
+  }
 
 
 
