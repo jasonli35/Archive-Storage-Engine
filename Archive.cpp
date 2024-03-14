@@ -200,63 +200,6 @@ void Archive::openSteams(const std::string &aFullPath) {
             return status.getValue();
       });
 
-
-
-//      size_t buffer_size = data_size - file_name_size;
-
-
-//      bool addingFristBlock = true;
-//      size_t byte_left_ToRead = Archive::getFileSizeInByte(readFile);
-
-//
-//      size_t current_block_index;
-//      int next_block_index = -1;
-
-
-//      while(byte_left_ToRead > 0 || (addingFristBlock && byte_left_ToRead == 0)) {
-//
-//          if(next_block_index == -1) {
-//              current_block_index = getNextFreeBlock();
-//          }
-//          else {
-//              current_block_index = next_block_index;
-//          }
-//          Block newBlock;
-//
-//          std::strcpy(newBlock.data, short_file_name.c_str());
-//
-//          size_t readingBytes = byte_left_ToRead;
-//
-//          BlockHeader &newBlockHeader = newBlock.meta;
-//          newBlockHeader.fileName_size = file_name_size;
-//          newBlockHeader.occupied = true;
-//          newBlockHeader.previous_block_index = current_block_index;
-//          if(addingFristBlock) {
-//              newBlockHeader.previous_block_index = -1; //indicate first block of the file that copy from
-//              addingFristBlock = false;
-//          }
-//           // set it to the current inserting block index
-//          if(byte_left_ToRead > buffer_size) {
-//              next_block_index = getNextFreeBlock();
-//              newBlockHeader.next_block = next_block_index;
-//              readingBytes = buffer_size;
-//          }
-//          newBlockHeader.byte_stored = readingBytes + file_name_size;
-//          readFile.read(newBlock.data + file_name_size, readingBytes);
-//          if(readFile) {
-//              byte_left_ToRead -= readingBytes;
-//
-//          }
-//          else {
-//              notify_all_observers(ActionType::added, aFilename, false);
-//              return ArchiveStatus<bool>(ArchiveErrors::fileReadError);
-//          }
-//
-//          ArchiveStatus<bool> status = writeBlockToFile(newBlock, current_block_index);
-//          if(!status.isOK()) {return status;}
-//
-//      }
-
       readFile.close();
       notify_all_observers(ActionType::added, aFilename, true);
       return ArchiveStatus(true);
