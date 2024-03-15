@@ -42,9 +42,25 @@ namespace ECE141 {
     /** This is new child class of data processor, use it to compress the if add asks for it*/
     class Compression : public IDataProcessor {
     public:
-        std::vector<uint8_t> process(const std::vector<uint8_t>& input) override;
+        std::vector<uint8_t> process(const std::vector<uint8_t>& input) override {
+            size_t original_size = input.size();
+            uLongf compressedSize = compressBound(original_size);
+            std::vector<uint8_t> output(compressedSize);
+            if (compress(output.data(), &compressedSize, input.data(), original_size) != Z_OK) {
+                std::cerr << "Compression failed!" << std::endl;
+            }
 
-        std::vector<uint8_t> reverseProcess(const std::vector<uint8_t>& input) override;
+            return output;
+        }
+
+        std::vector<uint8_t> reverseProcess(const std::vector<uint8_t>& input) override {
+            size_t blockDataSize = data_size;
+            std::vector<uint8_t> original(blockDataSize);
+            if(uncompress(original.data(), &blockDataSize, input.data(), input.size()) != Z_OK) {
+                std::cerr << "reverse compression failed!" << std::endl;
+            }
+            return input;
+        }
         ~Compression() override = default;
 
     };
