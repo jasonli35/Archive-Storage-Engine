@@ -25,6 +25,8 @@
 #include <cstring>
 #include <zlib.h>
 #include "Chunker.hpp"
+#include "IDataProcessor.hpp"
+#include <sstream>
 
 namespace ECE141 {
 
@@ -35,12 +37,7 @@ namespace ECE141 {
         void operator()(ActionType anAction, const std::string &aName, bool status);
     };
 
-    class IDataProcessor {
-    public:
-        virtual std::vector<uint8_t> process(const std::vector<uint8_t>& input) = 0;
-        virtual std::vector<uint8_t> reverseProcess(const std::vector<uint8_t>& input) = 0;
-        virtual ~IDataProcessor(){};
-    };
+
 
     /** This is new child class of data processor, use it to compress the if add asks for it*/
     class Compression : public IDataProcessor {
@@ -49,8 +46,7 @@ namespace ECE141 {
 
         std::vector<uint8_t> reverseProcess(const std::vector<uint8_t>& input) override;
         ~Compression() override = default;
-    protected:
-        size_t orignal_size = 0;
+
     };
 
 
@@ -109,12 +105,10 @@ namespace ECE141 {
 
 
 
-
-
-
     class Archive {
     protected:
         std::string archiveFullPath;
+        IDataProcessor* theProcessor = nullptr;
 
 
 
@@ -127,6 +121,7 @@ namespace ECE141 {
         void findFirstBlock(size_t& index, size_t& fileName_size, const std::string &aFilename);
 
 
+
         static std::string process_archive_name(const std::string& aName);
         bool update_disk_header(BlockHeader& aHeader, size_t index);
         Archive(const std::string &aFullPath, AccessMode aMode);  //protected on purpose
@@ -137,7 +132,6 @@ namespace ECE141 {
 
         void openSteams(const std::string &aFullPath);
 
-        std::queue<size_t> free_block_index;
 
         void notify_all_observers(ActionType anAction, const std::string &aName, bool status);
 
@@ -152,6 +146,12 @@ namespace ECE141 {
         std::string getFileName(const Block& aBlock);
 
         ArchiveStatus<bool> writeBlockToFile(Block& theBlock, size_t index);
+
+        std::iostream& vectorToFstreamAdpoter(const std::vector<uint8_t>& theVec);
+        std::vector<uint8_t> fstreamAdpoterToVec(std::istream& aFstream);
+
+        void preprocess(std::iostream& aStream, const std::string& fname, size_t& fnameSize, IDataProcessor* aProcessor, uint32_t& fname_hash, std::string& short_file_name);
+        std::vector<uint8_t> stringToVectorUInt8(const std::string& str);
 
 
     public:
@@ -185,15 +185,9 @@ namespace ECE141 {
 
         ArchiveStatus<size_t>    compact();
 
-
-
-
-
-
         //STUDENT: add anything else you want here, (e.g. blocks?)...
 
     };
-
 
 
 }

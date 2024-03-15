@@ -21,7 +21,6 @@ namespace ECE141 {
     Archive& Archive::operator=(const Archive& aCopy) {
         processors = aCopy.processors;
         observers = aCopy.observers;
-        free_block_index = aCopy.free_block_index;
         archiveFullPath = aCopy.archiveFullPath;
         openSteams(archiveFullPath);
 
@@ -57,7 +56,6 @@ void Archive::openSteams(const std::string &aFullPath) {
       if(!archiveStream.is_open()) {
           std::cerr << "archiveStream is not opening" << std::endl;
       }
-
   }
 
 
@@ -136,15 +134,28 @@ void Archive::openSteams(const std::string &aFullPath) {
         }
         return ArchiveStatus<bool>(true);
   }
-
-//    std::vector<uint8_t>  fStreamToVectorAdpoter(std::fstream aFstream) {
-//      return std::vector<uint8_t>(std::istreambuf_iterator<char>(aFstream),  std::istreambuf_iterator<char>());
-//  }
 //
-//    std::fstream vectorToFstreamAdpoter(std::vector<uint8_t> data) {
-//      std::fstream file(aFileStream, std::ios::out | std::ios::binary);
-//      return
-//  }
+//    void Archive::vectorToFstreamAdpoter(std::iostream& aStream, const std::vector<uint8_t>& theVec) {
+//        std::stringbuf buffer(std::ios::in | std::ios::out | std::ios::binary);
+//
+//        buffer.sputn(reinterpret_cast<const char*>(theVec.data()), theVec.size());
+//
+//        aStream(&buffer);
+//
+//
+//    }
+
+    std::vector<uint8_t> Archive::fstreamAdpoterToVec(std::istream& aFstream) {
+        aFstream.clear();
+        aFstream.seekg(0, std::ios::end);
+        size_t size = aFstream.tellg();
+        std::vector<uint8_t> theVec(size);
+        aFstream.seekg(0, std::ios::beg);
+        if (!aFstream.read(reinterpret_cast<char*>(theVec.data()), size)) {
+            std::cerr << "Error reading file" << std::endl;
+        }
+        return theVec;
+    }
 
     size_t Archive::countBlocks() {
         archiveStream.clear(); //just in case
@@ -173,17 +184,60 @@ void Archive::openSteams(const std::string &aFullPath) {
         return ArchiveStatus<bool>(true);  //lacks error handling
     }
 
+    std::vector<uint8_t> Archive::stringToVectorUInt8(const std::string& str) {
+        std::vector<uint8_t> result;
+        for (char c : str) {
+            result.push_back(static_cast<uint8_t>(c));
+        }
+        result.push_back(static_cast<uint8_t>('\0'));
+        return result;
+    }
 
+
+
+  uint32_t Archive::hashString(const char *str) {
+      const int gMultiplier = 37;
+      uint32_t h{0};
+      unsigned char *p;
+      for(p = (unsigned char*)str; *p != '\0'; p++) {
+          h = gMultiplier * h + *p;
+      }
+      return h;
+  }
+
+    void Archive::preprocess(std::iostream& aStream, const std::string& fname, size_t& fnameSize, IDataProcessor* aProcessor, uint32_t& fname_hash, std::string& short_file_name) {
+        short_file_name = getFileName(fname);
+        fname_hash = hashString(short_file_name.c_str());
+        theProcessor = aProcessor;
+        std::fstream readFile(fname, std::ios::in|std::ios::binary);
+        if(!readFile.good()) {
+            notify_all_observers(ActionType::added, fname, false);
+        }
+        std::vector<uint8_t> fileStreamVec = fstreamAdpoterToVec(readFile);
+
+        if(aProcessor != nullptr) {
+            std::vector<uint8_t> fname_vec = stringToVectorUInt8(short_file_name);
+            std::vector<uint8_t> compressedFname = aProcessor->process(fname_vec);
+            fnameSize = compressedFname.size();
+            fileStreamVec = aProcessor->process(fileStreamVec);
+        }
+        else {
+            fnameSize = short_file_name.size() + 1;
+        }
+        aStream.write(reinterpret_cast<const char*>(fileStreamVec.data()), fileStreamVec.size());
+
+    }
 
     ArchiveStatus<bool> Archive::add(const std::string &aFilename, IDataProcessor* aProcessor) {
-        std::string short_file_name = getFileName(aFilename);
-        size_t file_name_size = short_file_name.size() + 1;
-        //std::ios::out|std::ios::in|std::ios::binary|std::ios::trunc
-      std::fstream readFile(aFilename, std::ios::in|std::ios::binary);
-      if(!readFile.good()) {
-          notify_all_observers(ActionType::added, aFilename, false);
-          return ArchiveStatus<bool>(ArchiveErrors::fileNotFound);
-      }
+
+        uint32_t filename_hash;
+        size_t file_name_size;
+        std::stringstream buf;
+        std::iostream readFile(buf.rdbuf());
+        std::string short_file_name;
+
+      preprocess(readFile, aFilename, file_name_size, aProcessor, filename_hash, short_file_name);
+
       ECE141::Chunker theChunker(readFile, file_name_size);
       IntVector thePlaces;
       size_t payload_size = data_size - file_name_size;
@@ -195,24 +249,25 @@ void Archive::openSteams(const std::string &aFullPath) {
             currentHeader.next_block = thePlaces[aPartNum + 2];
             currentHeader.byte_stored = writen_size;
             currentHeader.fileName_size = file_name_size;
+            currentHeader.fname_hash = filename_hash;
             std::strcpy(aBlock.data, short_file_name.c_str());
             ArchiveStatus<bool> status = writeBlockToFile(aBlock, thePlaces[aPartNum + 1]);
             return status.getValue();
       });
 
-      readFile.close();
+
       notify_all_observers(ActionType::added, aFilename, true);
       return ArchiveStatus(true);
     }
 
 
     void Archive::findFirstBlock(size_t& index, size_t& fileName_size, const std::string &aFilename) {
+      uint32_t fname_hash = hashString(aFilename.c_str());
         each([&] (Block &aBlock, size_t aPos) {
-            std::string data(aBlock.data);
-            const std::string block_file_name = data.substr(0, aBlock.meta.fileName_size - 1);
-            if(aBlock.meta.occupied && block_file_name.compare(aFilename) == 0 && aBlock.meta.previous_block_index == -1) {
+            const BlockHeader& currentHeader = aBlock.meta;
+            if(currentHeader.occupied && fname_hash == currentHeader.fname_hash && currentHeader.previous_block_index == -1) {
                 index = aPos;
-                fileName_size = aBlock.meta.fileName_size;
+                fileName_size = currentHeader.fileName_size;
                 return false;
             }
             else {
@@ -267,13 +322,12 @@ void Archive::openSteams(const std::string &aFullPath) {
 
     ArchiveStatus<bool> Archive::remove(const std::string &aFilename) {
       bool isFileExist = false;
+      uint32_t tofindFnameHash = hashString(aFilename.c_str());
       each([&] (Block& theBlock, size_t aPos) {
-
-          if(getFileName(theBlock) == aFilename) {
-              BlockHeader modified_header = theBlock.meta;
-              modified_header.occupied = false;
-              update_disk_header(modified_header, aPos);
-              free_block_index.push(aPos);
+          BlockHeader current_header = theBlock.meta;
+          if(current_header.fname_hash == tofindFnameHash) {
+              current_header.occupied = false;
+              update_disk_header(current_header, aPos);
               isFileExist = true;
           }
           return true;
@@ -327,19 +381,17 @@ void Archive::openSteams(const std::string &aFullPath) {
     }
 
     ArchiveStatus<size_t> Archive::list(std::ostream &aStream) {
-        std::unordered_set<std::string> existingFile;
+        std::unordered_set<uint32_t> existingFile;
         aStream << "###  name         size       date added" << std::endl;
         aStream << "--------------------------------" << std::endl;
         each([&] (Block &aBlock, size_t aPos) {
-
             if(aBlock.meta.occupied) {
-                std::string current_fname = getFileName(aBlock);
-                if(!existingFile.count(current_fname)) {
-                    existingFile.insert(current_fname);
-                    aStream << current_fname << '\n';
+                uint32_t current_fname_hash = aBlock.meta.fname_hash;
+                if(!existingFile.count(current_fname_hash)) {
+                    existingFile.insert(current_fname_hash);
+                    aStream << getFileName(aBlock) << '\n';
                 }
             }
-
             return true;
         });
 
@@ -426,10 +478,10 @@ void Archive::openSteams(const std::string &aFullPath) {
    }
 
     std::vector<uint8_t> Compression::process(const std::vector<uint8_t>& input) {
-      orignal_size += input.size();
-      uLongf compressedSize = compressBound(orignal_size);
+      size_t original_size = input.size();
+      uLongf compressedSize = compressBound(original_size);
       std::vector<uint8_t> output(compressedSize);
-      if (compress(output.data(), &compressedSize, input.data(), orignal_size) != Z_OK) {
+      if (compress(output.data(), &compressedSize, input.data(), original_size) != Z_OK) {
             std::cerr << "Compression failed!" << std::endl;
       }
 
@@ -437,8 +489,9 @@ void Archive::openSteams(const std::string &aFullPath) {
     }
 
     std::vector<uint8_t> Compression::reverseProcess(const std::vector<uint8_t>& input) {
-      std::vector<uint8_t> original(orignal_size);
-      if(uncompress(original.data(), &orignal_size, input.data(), input.size()) != Z_OK) {
+      size_t blockDataSize = data_size;
+      std::vector<uint8_t> original(blockDataSize);
+      if(uncompress(original.data(), &blockDataSize, input.data(), input.size()) != Z_OK) {
           std::cerr << "reverse compression failed!" << std::endl;
       }
       return input;
