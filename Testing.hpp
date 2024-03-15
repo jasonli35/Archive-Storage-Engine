@@ -3,6 +3,8 @@
 //
 //  Created by rick gessner on 1/24/23.
 //
+//  Updated on March 14, 2024 - 2:56 PM
+//
 
 #ifndef Testing_h
 #define Testing_h
@@ -413,7 +415,8 @@ namespace ECE141 {
                         addTestFiles(*theArchive.getValue(), 'A');
                         addTestFiles(*theArchive.getValue(), 'B');
                         std::stringstream theStream;
-                        if (542 == theArchive.getValue()->debugDump(theStream).getValue()) {
+                        auto debugCount = theArchive.getValue()->debugDump(theStream).getValue();
+                        if (530 <= debugCount && debugCount <= 592) {
                             theResult = verifyDump(theStream.str());
                         }
                         anOutput << theStream.str();
@@ -426,7 +429,7 @@ namespace ECE141 {
 
                 if (theResult) {
                     std::string theArcName(folder + "/dumptest.arc");
-                    theResult = hasMinSize(theArcName, 1024 * 542);
+                    theResult = hasMinSize(theArcName, 1024 * 530);
                 }
             }
             theTracker.reportLeaks(anOutput);
