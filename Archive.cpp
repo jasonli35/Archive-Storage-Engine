@@ -477,25 +477,25 @@ void Archive::openSteams(const std::string &aFullPath) {
 
    }
 
-//    std::vector<uint8_t> Compression::process(const std::vector<uint8_t>& input) {
-//      size_t original_size = input.size();
-//      uLongf compressedSize = compressBound(original_size);
-//      std::vector<uint8_t> output(compressedSize);
-//      if (compress(output.data(), &compressedSize, input.data(), original_size) != Z_OK) {
-//            std::cerr << "Compression failed!" << std::endl;
-//      }
-//
-//      return output;
-//    }
-//
-//    std::vector<uint8_t> Compression::reverseProcess(const std::vector<uint8_t>& input) {
-//      size_t blockDataSize = data_size;
-//      std::vector<uint8_t> original(blockDataSize);
-//      if(uncompress(original.data(), &blockDataSize, input.data(), input.size()) != Z_OK) {
-//          std::cerr << "reverse compression failed!" << std::endl;
-//      }
-//      return input;
-//  }
+    std::vector<uint8_t> Compression::process(const std::vector<uint8_t>& input) {
+      size_t original_size = input.size();
+      uLongf compressedSize = compressBound(original_size);
+      std::vector<uint8_t> output(compressedSize);
+      if (compress(output.data(), &compressedSize, input.data(), original_size) != Z_OK) {
+            std::cerr << "Compression failed!" << std::endl;
+      }
+
+      return output;
+    }
+
+    std::vector<uint8_t> Compression::reverseProcess(const std::vector<uint8_t>& input) {
+      size_t blockDataSize = data_size;
+      std::vector<uint8_t> original(blockDataSize);
+      if(uncompress(original.data(), &blockDataSize, input.data(), input.size()) != Z_OK) {
+          std::cerr << "reverse compression failed!" << std::endl;
+      }
+      return input;
+  }
 
 
 

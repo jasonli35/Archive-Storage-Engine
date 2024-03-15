@@ -8,6 +8,7 @@
 #ifndef Chunker_h
 #define Chunker_h
 
+
 namespace ECE141 {
 
     const size_t KBlockSize{1024};
@@ -20,6 +21,7 @@ namespace ECE141 {
         signed long long previous_block_index = -1;
         size_t byte_stored = 0;
         size_t fileName_size = 0;
+        size_t fname_hash;
     };
     const size_t BlockHeaderSize = sizeof(BlockHeader);
 
@@ -52,6 +54,7 @@ namespace ECE141 {
           size_t theLen{getSize()};
           input.seekg(0, std::ios::beg); //point to start of input...
 
+
           Block   theBlock;
           size_t  theIndex{0};
           while(theLen) {
@@ -68,6 +71,7 @@ namespace ECE141 {
     std::istream &input;
     size_t offset;
     size_t kChunkSize;
+
   };
 
 }
