@@ -8,7 +8,7 @@ find_package(ZLIB REQUIRED)
 
 include_directories(.)
 
-add_executable(archive
+add_executable(
         Archive.cpp
         Archive.hpp
         main.cpp
