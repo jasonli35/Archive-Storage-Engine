@@ -8,7 +8,7 @@ find_package(ZLIB REQUIRED)
 
 include_directories(.)
 
-add_executable(
+add_executable(archive
         Archive.cpp
         Archive.hpp
         main.cpp
@@ -17,8 +17,7 @@ add_executable(
         Timer.hpp
         Tracker.hpp
         Chunker.hpp
-        Chunker.hpp
-        IDataProcessor.h
+        IDataProcessor.hpp
 )
 
 # Link against zlib library
