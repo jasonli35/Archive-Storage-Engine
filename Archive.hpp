@@ -25,7 +25,7 @@
 #include <cstring>
 #include <zlib.h>
 #include "Chunker.hpp"
-#include "IDataProcessor.hpp"
+
 #include <sstream>
 
 namespace ECE141 {
@@ -104,14 +104,9 @@ namespace ECE141 {
     //--------------------------------------------------------------------------------
 
 
-
     class Archive {
     protected:
         std::string archiveFullPath;
-        IDataProcessor* theProcessor = nullptr;
-
-
-
         std::vector<std::shared_ptr<IDataProcessor>> processors;
         std::vector<std::shared_ptr<ArchiveObserver>> observers;
 //        std::ofstream write_stream;
@@ -120,7 +115,7 @@ namespace ECE141 {
 
         void findFirstBlock(size_t& index, size_t& fileName_size, const std::string &aFilename);
 
-
+        void handleReverseProcess(const Block& theBlock, std::vector<char>& contentVector, size_t& byteToWrite);
 
         static std::string process_archive_name(const std::string& aName);
         bool update_disk_header(BlockHeader& aHeader, size_t index);
@@ -134,6 +129,8 @@ namespace ECE141 {
 
 
         void notify_all_observers(ActionType anAction, const std::string &aName, bool status);
+
+
 
         size_t getNextFreeBlock();
 
@@ -150,7 +147,7 @@ namespace ECE141 {
         std::iostream& vectorToFstreamAdpoter(const std::vector<uint8_t>& theVec);
         std::vector<uint8_t> fstreamAdpoterToVec(std::istream& aFstream);
 
-        void preprocess(std::iostream& aStream, const std::string& fname, size_t& fnameSize, IDataProcessor* aProcessor, uint32_t& fname_hash, std::string& short_file_name);
+        void preprocess(std::iostream& aStream, const std::string& fname, size_t& uncompressed_fname_size,IDataProcessor* aProcessor, uint32_t& fname_hash, std::string& short_file_name);
         std::vector<uint8_t> stringToVectorUInt8(const std::string& str);
 
 

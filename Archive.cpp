@@ -205,10 +205,12 @@ void Archive::openSteams(const std::string &aFullPath) {
       return h;
   }
 
-    void Archive::preprocess(std::iostream& aStream, const std::string& fname, size_t& fnameSize, IDataProcessor* aProcessor, uint32_t& fname_hash, std::string& short_file_name) {
+
+
+    void Archive::preprocess(std::iostream& aStream, const std::string& fname, size_t& uncompressed_fname_size, IDataProcessor* aProcessor, uint32_t& fname_hash, std::string& short_file_name) {
         short_file_name = getFileName(fname);
+        uncompressed_fname_size = short_file_name.size() + 1;
         fname_hash = hashString(short_file_name.c_str());
-        theProcessor = aProcessor;
         std::fstream readFile(fname, std::ios::in|std::ios::binary);
         if(!readFile.good()) {
             notify_all_observers(ActionType::added, fname, false);
@@ -216,16 +218,10 @@ void Archive::openSteams(const std::string &aFullPath) {
         std::vector<uint8_t> fileStreamVec = fstreamAdpoterToVec(readFile);
 
         if(aProcessor != nullptr) {
-            std::vector<uint8_t> fname_vec = stringToVectorUInt8(short_file_name);
-            std::vector<uint8_t> compressedFname = aProcessor->process(fname_vec);
-            fnameSize = compressedFname.size();
             fileStreamVec = aProcessor->process(fileStreamVec);
         }
-        else {
-            fnameSize = short_file_name.size() + 1;
-        }
-        aStream.write(reinterpret_cast<const char*>(fileStreamVec.data()), fileStreamVec.size());
 
+        aStream.write(reinterpret_cast<const char*>(fileStreamVec.data()), fileStreamVec.size());
     }
 
     ArchiveStatus<bool> Archive::add(const std::string &aFilename, IDataProcessor* aProcessor) {
@@ -235,12 +231,13 @@ void Archive::openSteams(const std::string &aFullPath) {
         std::stringstream buf;
         std::iostream readFile(buf.rdbuf());
         std::string short_file_name;
+        size_t uncompressed_fname_size;
 
-      preprocess(readFile, aFilename, file_name_size, aProcessor, filename_hash, short_file_name);
+      preprocess(readFile, aFilename, uncompressed_fname_size,aProcessor, filename_hash, short_file_name);
 
-      ECE141::Chunker theChunker(readFile, file_name_size);
+      ECE141::Chunker theChunker(readFile, uncompressed_fname_size);
       IntVector thePlaces;
-      size_t payload_size = data_size - file_name_size;
+
       getFreeBlocks(theChunker.chunkCount(), thePlaces);
       theChunker.each([&](ECE141::Block& aBlock, size_t aPartNum, size_t writen_size) {
             BlockHeader& currentHeader = aBlock.meta;
@@ -248,8 +245,10 @@ void Archive::openSteams(const std::string &aFullPath) {
             currentHeader.previous_block_index = thePlaces[aPartNum];
             currentHeader.next_block = thePlaces[aPartNum + 2];
             currentHeader.byte_stored = writen_size;
-            currentHeader.fileName_size = file_name_size;
+            currentHeader.fileName_size = uncompressed_fname_size;
             currentHeader.fname_hash = filename_hash;
+            currentHeader.isCompressed = !(aProcessor == nullptr);
+            currentHeader.theProcessor = aProcessor;
             std::strcpy(aBlock.data, short_file_name.c_str());
             ArchiveStatus<bool> status = writeBlockToFile(aBlock, thePlaces[aPartNum + 1]);
             return status.getValue();
@@ -275,7 +274,24 @@ void Archive::openSteams(const std::string &aFullPath) {
             }
         });
     }
+    std::vector<uint8_t> getContent(const char* content, size_t anOffset, size_t theLen) {
+      const char* start = anOffset + content;
+      return std::vector<uint8_t>(start, start + theLen);
+  }
 
+    void Archive::handleReverseProcess(const Block& theBlock, std::vector<char>& contentVector, size_t& byteToWrite) {
+      const BlockHeader& theHeader = theBlock.meta;
+        std::vector<uint8_t> data = getContent(theBlock.data, theHeader.fileName_size, data_size);
+      if(theHeader.isCompressed) {
+          IDataProcessor* theProcessor = theHeader.theProcessor;
+          data = theProcessor->reverseProcess(data);
+          byteToWrite = data.size();
+      }
+      contentVector.reserve(data.size());
+      std::copy(data.begin(), data.end(), contentVector.begin());
+
+
+  }
 
 
     ArchiveStatus<bool> Archive::extract(const std::string &aFilename, const std::string &aFullPath) {
@@ -295,7 +311,11 @@ void Archive::openSteams(const std::string &aFullPath) {
         while(current_index != -1) {
             Block current_block;
             getBlock(current_block, current_index);
-            write_file.write(current_block.data + file_name_size, current_block.meta.byte_stored);
+            size_t byteToWrite = current_block.meta.byte_stored;
+//            char* content = current_block.data + file_name_size;
+            std::vector<char> content_vec;
+            handleReverseProcess(current_block, content_vec, byteToWrite);
+            write_file.write(content_vec.data(), byteToWrite);
             if(!write_file.good()) {
                 return ArchiveStatus<bool>(ArchiveErrors::fileWriteError);
             }
@@ -316,7 +336,7 @@ void Archive::openSteams(const std::string &aFullPath) {
   }
 
   std::string Archive::getFileName(const Block& aBlock) {
-     std::string current_fName (aBlock.data, aBlock.meta.fileName_size - 1);
+      std::string current_fName (aBlock.data, aBlock.meta.fileName_size - 1);
       return current_fName;
   }
 
@@ -339,8 +359,8 @@ void Archive::openSteams(const std::string &aFullPath) {
     bool Archive::check_stream_status (const std::fstream& file_stream_to_check) {
       if(!file_stream_to_check.good()) {
           std::cerr << "Error flags: ";
-          if (file_stream_to_check.rdstate() & std::ios::eofbit)
-              std::cerr << "eof ";
+//          if (file_stream_to_check.rdstate() & std::ios::eofbit)
+//              std::cerr << "eof ";
           if (file_stream_to_check.rdstate() & std::ios::failbit)
               std::cerr << "fail ";
 
@@ -394,10 +414,10 @@ void Archive::openSteams(const std::string &aFullPath) {
             }
             return true;
         });
-
         notify_all_observers(ActionType::listed, "", true);
         return ArchiveStatus(existingFile.size());
     }
+
     ArchiveStatus<size_t> Archive::debugDump(std::ostream &aStream) {
       aStream << "###  status   name    " << std::endl;
       aStream << "-----------------------" << std::endl;
@@ -480,21 +500,37 @@ void Archive::openSteams(const std::string &aFullPath) {
     std::vector<uint8_t> Compression::process(const std::vector<uint8_t>& input) {
       size_t original_size = input.size();
       uLongf compressedSize = compressBound(original_size);
-      std::vector<uint8_t> output(compressedSize);
-      if (compress(output.data(), &compressedSize, input.data(), original_size) != Z_OK) {
+      uint8_t output[compressedSize];
+      if (compress(output, &compressedSize, input.data(), original_size) != Z_OK) {
             std::cerr << "Compression failed!" << std::endl;
       }
-
-      return output;
+      std::vector<uint8_t> theResult (output, output + compressedSize);
+      return theResult;
     }
 
     std::vector<uint8_t> Compression::reverseProcess(const std::vector<uint8_t>& input) {
-      size_t blockDataSize = data_size;
+      size_t blockDataSize = data_size * 20;
       std::vector<uint8_t> original(blockDataSize);
-      if(uncompress(original.data(), &blockDataSize, input.data(), input.size()) != Z_OK) {
-          std::cerr << "reverse compression failed!" << std::endl;
+      int result = uncompress(original.data(), &blockDataSize, input.data(), input.size());
+      if(result != Z_OK) {
+          switch(result) {
+              case Z_MEM_ERROR:
+                  std::cerr << "Out of memory error!" << std::endl;
+                  break;
+              case Z_BUF_ERROR:
+                  std::cerr << "Output buffer wasn't large enough!" << std::endl;
+                  break;
+              case Z_DATA_ERROR:
+                  std::cerr << "Input data was corrupted or incomplete!" << std::endl;
+                  break;
+              default:
+                  std::cerr << "Unknown error: " << result << std::endl;
+          }
       }
-      return input;
+      original.resize(blockDataSize);
+      original.shrink_to_fit();
+
+      return original;
   }
 
 
