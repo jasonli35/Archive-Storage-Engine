@@ -18,6 +18,7 @@ add_executable(archive
         Tracker.hpp
         Chunker.hpp
         Chunker.hpp
+        IDataProcessor.h
 )
 
 # Link against zlib library

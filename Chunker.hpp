@@ -9,6 +9,8 @@
 #define Chunker_h
 
 
+#include "IDataProcessor.hpp"
+
 namespace ECE141 {
 
     const size_t KBlockSize{1024};
@@ -22,6 +24,8 @@ namespace ECE141 {
         size_t byte_stored = 0;
         size_t fileName_size = 0;
         size_t fname_hash;
+        bool isCompressed = false;
+        IDataProcessor* theProcessor;
     };
     const size_t BlockHeaderSize = sizeof(BlockHeader);
 
@@ -53,7 +57,6 @@ namespace ECE141 {
       bool each(BlockVisitor aCallback) {
           size_t theLen{getSize()};
           input.seekg(0, std::ios::beg); //point to start of input...
-
 
           Block   theBlock;
           size_t  theIndex{0};
