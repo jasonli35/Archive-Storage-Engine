@@ -1,0 +1,3 @@
+/Users/jasonli/Documents/ece141a/pa4-archive-part1-jasonli35/cmake-build-debug/CMakeFiles/archive.dir
+/Users/jasonli/Documents/ece141a/pa4-archive-part1-jasonli35/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/jasonli/Documents/ece141a/pa4-archive-part1-jasonli35/cmake-build-debug/CMakeFiles/rebuild_cache.dir
