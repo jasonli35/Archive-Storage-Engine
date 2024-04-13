@@ -1,5 +1,5 @@
 # Archive System Project Documentation
-Overview
+## Overview
 This project develops a robust archival storage system that ensures efficient handling and high fidelity of documents. The system is designed for adding, extracting, removing, and managing files within an archive. It now includes advanced data processing functionalities, specifically data compression and decompression, to optimize storage space and maintain data integrity.
 
 Project Components
