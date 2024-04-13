@@ -6,7 +6,7 @@ This project develops a robust archival storage system that ensures efficient ha
 ### Archive Management
 The Archive class is central to managing and manipulating archive files. It operates with fixed-size blocks in a binary format, optimizing space and ensuring that files are stored and retrieved without any alterations.
 
-## Key Features
+### Key Features
 File Operations: Add, extract, remove, and list files within the archive.
 Diagnostic Tools: Functionality to dump storage block details for debugging.
 Data Integrity: Ensures 100% fidelity in file storage and retrieval.
@@ -32,7 +32,7 @@ Current Implementation and Enhancements
 Current Features
 The system already supports basic file operations, data integrity, and observer notifications. It now also handles file compression and decompression through a well-defined data processing interface.
 
-## Future Possibilities
+### Future Possibilities
 Encryption and Security: Explore adding encryption functionalities to enhance data security within the archive.
 Metadata Management: Implement metadata management capabilities to support enhanced indexing and retrieval of archived files.
 Efficiency Improvements: Continually assess and integrate more efficient algorithms for compression and other data processing tasks.
