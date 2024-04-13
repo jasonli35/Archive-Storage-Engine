@@ -17,7 +17,7 @@ User-Friendly Access: Simplifies the processes of starting with a new archive or
 Data Processing and Compression
 The system now includes data processing capabilities, with an emphasis on file compression to enhance storage efficiency without sacrificing data integrity.
 
-## Implemented Enhancements
+### Implemented Enhancements
 IDataProcessor Interface: Supports sophisticated data operations like compression and decompression.
 CompressionProcessor Class: Implements the IDataProcessor interface to handle file compression and decompression during the archival and retrieval processes.
 Testing and Reliability
